@@ -1,5 +1,37 @@
+### --- Scala & SBT ---
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+.history
+.sbt_home
+build.log
+
+### --- Java & JVM ---
 *.class
 *.log
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+*.jar
+*.war
+*.ear
 hs_err_pid*
+replay_pid*
+
+### --- IntelliJ IDEA ---
+.idea/
+*.iml
+*.iws
+out/
+.idea_modules/
+
+### --- Seguridad y Configuración Local (CRÍTICO) ---
+# Aquí es donde protegerás los datos de las familias y claves
+.env
+*.local
+application.conf
+jdbc.properties
+secrets.xml
+
+### --- Sistemas Operativos ---
+.DS_Store
+Thumbs.db
