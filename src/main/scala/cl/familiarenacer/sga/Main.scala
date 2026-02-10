@@ -3,7 +3,7 @@ package cl.familiarenacer.sga
 import cl.familiarenacer.sga.repositorios.{DB, EntidadRepository}
 
 object Main extends App {
-  println("🚀 Iniciando SGA Renacer Backend...")
+  println("🚀 Iniciando SGA Renacer Backend..")
 
   // Inicializamos los repositorios con el contexto de DB
   val entidadRepo = new EntidadRepository(DB.ctx)
