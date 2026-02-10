@@ -7,7 +7,7 @@ project/plugins/project/
 .history
 .sbt_home
 build.log
-
+src/main/resources/application.conf
 ### --- Java & JVM ---
 *.class
 *.log
