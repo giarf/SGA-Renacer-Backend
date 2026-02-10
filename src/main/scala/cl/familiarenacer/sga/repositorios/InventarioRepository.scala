@@ -213,4 +213,84 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val unidades = ctx.run(query[ItemCatalogo].map(_.unidadMedidaEstandar).distinct).flatten
     (categorias, unidades)
   }
+
+  /**
+   * Lista todos los ítems del catálogo ordenados por nombre.
+   * 
+   * @return Lista completa de ítems con todos sus campos.
+   */
+  def listarTodosItems(): List[ItemCatalogo] = {
+    ctx.run(
+      query[ItemCatalogo]
+        .sortBy(_.nombre)(Ord.asc)
+    )
+  }
+
+  /**
+   * Registra un nuevo ítem en el catálogo.
+   * Inicializa stock y PPP en 0.
+   * 
+   * @param item Ítem a registrar (sin ID, se genera automáticamente).
+   * @return ID del ítem creado.
+   */
+  def registrarItem(item: ItemCatalogo): Int = {
+    ctx.run(
+      query[ItemCatalogo].insert(
+        _.nombre -> lift(item.nombre.map(_.trim)),
+        _.categoria -> lift(item.categoria.map(_.trim)),
+        _.unidadMedidaEstandar -> lift(item.unidadMedidaEstandar.map(_.trim)),
+        _.precioReferencia -> lift(item.precioReferencia),
+        _.stockActual -> lift(Option(BigDecimal(0))),
+        _.precioPromedioPonderado -> lift(Option(BigDecimal(0))),
+        _.valorTotalStock -> lift(Option(BigDecimal(0)))
+      ).returningGenerated(_.id)
+    ).toInt
+  }
+
+  /**
+   * Actualiza los campos básicos de un ítem del catálogo.
+   * PROTEGE los campos calculados: stockActual, precioPromedioPonderado, valorTotalStock.
+   * Estos solo pueden ser modificados mediante ingresos/egresos.
+   * 
+   * @param id ID del ítem a actualizar.
+   * @param nombre Nuevo nombre (opcional).
+   * @param categoria Nueva categoría (opcional).
+   * @param unidadMedida Nueva unidad de medida (opcional).
+   * @param precioReferencia Nuevo precio de referencia (opcional).
+   * @return Número de filas actualiz adas (1 si exitoso, 0 si no encontrado).
+   */
+  def actualizarItemBasico(
+    id: Int,
+    nombre: Option[String],
+    categoria: Option[String],
+    unidadMedida: Option[String],
+    precioReferencia: Option[BigDecimal]
+  ): Long = {
+    ctx.run(
+      query[ItemCatalogo]
+        .filter(_.id == lift(id))
+        .update(
+          _.nombre -> lift(nombre.map(_.trim)),
+          _.categoria -> lift(categoria.map(_.trim)),
+          _.unidadMedidaEstandar -> lift(unidadMedida.map(_.trim)),
+          _.precioReferencia -> lift(precioReferencia)
+        )
+    )
+  }
+
+  /**
+   * Obtiene lista de categorías únicas del catálogo.
+   * Útil para selectores en el frontend.
+   * 
+   * @return Lista de categorías únicas no vacías, ordenadas alfabéticamente.
+   */
+  def obtenerCategoriasUnicas(): List[String] = {
+    ctx.run(
+      query[ItemCatalogo]
+        .map(_.categoria)
+        .filter(_.isDefined)
+        .distinct
+        .sortBy(c => c)(Ord.asc)
+    ).flatten
+  }
 }

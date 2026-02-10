@@ -320,6 +320,144 @@ object SgaApiApp extends cask.MainRoutes {
   }
 
   /**
+   * Endpoint: Listar Todos los Ítems del Catálogo
+   * GET /api/catalogo
+   */
+  @cask.get("/api/catalogo")
+  def listarCatalogo() = {
+    try {
+      val items = inventarioRepo.listarTodosItems()
+      implicit val itemFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
+      cask.Response(Json.toJson(items).toString(), 200, headers = Seq("Content-Type" -> "application/json"))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+    }
+  }
+
+  /**
+   * Endpoint: OPTIONS para CORS Preflight - Registrar Ítem
+   * OPTIONS /api/catalogo/registrar
+   */
+  @cask.options("/api/catalogo/registrar")
+  def registrarItemOptions() = {
+    cask.Response(
+      data = "",
+      statusCode = 204,
+      headers = corsHeaders
+    )
+  }
+
+  /**
+   * Endpoint: Registrar Nuevo Ítem en el Catálogo
+   * POST /api/catalogo/registrar
+   */
+  @cask.post("/api/catalogo/registrar")
+  def registrarItemCatalogo(request: cask.Request) = {
+    try {
+      implicit val itemFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
+      val item = Json.parse(request.text()).as[ItemCatalogo]
+      
+      // Validaciones
+      if (item.nombre.isEmpty || item.nombre.exists(_.trim.isEmpty)) {
+        cask.Response(Json.obj("error" -> "El nombre del ítem es obligatorio").toString(), 400, headers = Seq("Content-Type" -> "application/json"))
+      } else {
+        val idGenerado = inventarioRepo.registrarItem(item)
+        cask.Response(
+          Json.obj("id" -> idGenerado, "mensaje" -> "Ítem registrado exitosamente en el catálogo").toString(),
+          201,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+    }
+  }
+
+  /**
+   * DTO para actualizar ítem del catálogo.
+   * Solo permite actualizar campos básicos, protege PPP y stock.
+   */
+  case class ActualizarItemRequest(
+    id: Int,
+    nombre: Option[String],
+    categoria: Option[String],
+    unidadMedidaEstandar: Option[String],
+    precioReferencia: Option[BigDecimal]
+  )
+  implicit val actualizarItemFormat: OFormat[ActualizarItemRequest] = Json.format[ActualizarItemRequest]
+
+  /**
+   * Endpoint: OPTIONS para CORS Preflight - Actualizar Ítem
+   * OPTIONS /api/catalogo/actualizar
+   */
+  @cask.options("/api/catalogo/actualizar")
+  def actualizarItemOptions() = {
+    cask.Response(
+      data = "",
+      statusCode = 204,
+      headers = corsHeaders
+    )
+  }
+
+  /**
+   * Endpoint: Actualizar Ítem del Catálogo
+   * POST /api/catalogo/actualizar
+   * PROTEGE: No permite modificar stockActual, precioPromedioPonderado, valorTotalStock
+   */
+  @cask.post("/api/catalogo/actualizar")
+  def actualizarItemCatalogo(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[ActualizarItemRequest]
+      
+      val filasActualizadas = inventarioRepo.actualizarItemBasico(
+        body.id,
+        body.nombre,
+        body.categoria,
+        body.unidadMedidaEstandar,
+        body.precioReferencia
+      )
+      
+      if (filasActualizadas > 0) {
+        cask.Response(
+          Json.obj("mensaje" -> "Ítem actualizado exitosamente", "filasActualizadas" -> filasActualizadas).toString(),
+          200,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      } else {
+        cask.Response(
+          Json.obj("error" -> s"No se encontró el ítem con ID ${body.id}").toString(),
+          404,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+    }
+  }
+
+  /**
+   * Endpoint: Obtener Categorías Únicas
+   * GET /api/catalogo/utilitarios/categorias
+   */
+  @cask.get("/api/catalogo/utilitarios/categorias")
+  def obtenerCategorias() = {
+    try {
+      val categorias = inventarioRepo.obtenerCategoriasUnicas()
+      cask.Response(Json.toJson(categorias).toString(), 200, headers = Seq("Content-Type" -> "application/json"))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+    }
+  }
+
+  /**
    * Endpoint: Crear Solicitud de Material
    * POST /api/solicitudes
    * Cuerpo JSON: { "solicitud": {...}, "items": [...] }
