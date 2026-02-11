@@ -284,4 +284,27 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
     }
   }
+
+  /**
+   * Elimina una Persona Natural y su Entidad base de forma transaccional.
+   * Primero elimina la PersonaNatural y luego la Entidad.
+   *
+   * @param id ID de la entidad/persona a eliminar.
+   * @return true si se eliminó correctamente, false si no existía.
+   */
+  def eliminarPersona(id: Int): Boolean = {
+    ctx.transaction {
+      // 1. Eliminar de PersonaNatural
+      val personasEliminadas = ctx.run(
+        query[PersonaNatural].filter(_.entidadId == lift(id)).delete
+      )
+
+      // 2. Eliminar de Entidad
+      val entidadesEliminadas = ctx.run(
+        query[Entidad].filter(_.id == lift(id)).delete
+      )
+
+      (personasEliminadas + entidadesEliminadas) > 0
+    }
+  }
 }

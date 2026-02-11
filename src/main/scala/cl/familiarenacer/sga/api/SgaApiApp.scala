@@ -219,6 +219,58 @@ object SgaApiApp extends cask.MainRoutes {
   }
 
   /**
+   * Endpoint: OPTIONS para CORS Preflight - Eliminar Persona
+   * OPTIONS /api/personas/eliminar/:id
+   */
+  @cask.options("/api/personas/eliminar/:id")
+  def eliminarPersonaOptions(id: Int) = {
+    cask.Response(
+      data = "",
+      statusCode = 204,
+      headers = corsHeaders
+    )
+  }
+
+  /**
+   * Endpoint: Eliminar Persona
+   * DELETE /api/personas/eliminar/:id
+   * Elimina una persona y su entidad asociada.
+   */
+  @cask.delete("/api/personas/eliminar/:id")
+  def eliminarPersona(id: Int) = {
+    try {
+      val eliminado = entidadRepo.eliminarPersona(id)
+      if (eliminado) {
+        cask.Response(
+          Json.obj("mensaje" -> "Persona eliminada exitosamente").toString(),
+          200,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      } else {
+        cask.Response(
+          Json.obj("error" -> "No se encontró la persona con ese ID").toString(),
+          404,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      }
+    } catch {
+      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
+        cask.Response(
+          Json.obj("error" -> "No se puede eliminar la persona porque tiene registros asociados (Donaciones, Ingresos, etc.)").toString(),
+          409,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+      case e: Exception =>
+        e.printStackTrace()
+        cask.Response(
+          Json.obj("error" -> e.getMessage).toString(),
+          500,
+          headers = Seq("Content-Type" -> "application/json")
+        )
+    }
+  }
+
+  /**
    * Endpoint: Registrar Donación de Dinero
    * POST /api/ingresos/donacion
    * Cuerpo JSON: { "ingreso": {...}, "donacion": {...}, "pecuniario": {...} }
@@ -504,7 +556,20 @@ object SgaApiApp extends cask.MainRoutes {
   implicit val registrarPersonaFormat = Json.format[RegistrarPersonaRequest]
 
   /**
-   * Endpoint: Registrar Nueva Persona
+   * Endpoint: OPTIONS para CORS Preflight - Registrar Persona
+   * OPTIONS /api/entidades/registrar
+   */
+  @cask.options("/api/entidades/registrar")
+  def registrarPersonaOptions() = {
+    cask.Response(
+      data = "",
+      statusCode = 204,
+      headers = corsHeaders
+    )
+  }
+
+  /**
+   * Endpoint: Registrar Nuevo Persona
    * POST /api/entidades/registrar
    */
   @cask.post("/api/entidades/registrar")
