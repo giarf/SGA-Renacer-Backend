@@ -121,9 +121,20 @@ Full CRUD for institutions/organizations.
 
 ### Persona Sub-Roles
 
-Roles are modeled as **sub-resources** of a persona. Each role (beneficiario, colaborador, trabajador, directivo) supports full CRUD.
+Roles are modeled as **sub-resources** of a persona for CRUD operations, and also available as **independent lists** for enriched views.
 
-#### Beneficiario
+#### Independent Listings (enriched with persona data)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/beneficiarios` | List all beneficiarios + persona data |
+| `GET` | `/api/colaboradores` | List all colaboradores + persona data |
+| `GET` | `/api/trabajadores` | List all trabajadores + persona data |
+| `GET` | `/api/directivos` | List all directivos + persona data |
+
+Each returns a flat JSON array with persona fields (`id`, `rut`, `nombres`, `apellidos`, `genero`, `telefono`, `correo`, `direccion`, `comuna`) merged with role-specific fields.
+
+#### Beneficiario (sub-resource)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

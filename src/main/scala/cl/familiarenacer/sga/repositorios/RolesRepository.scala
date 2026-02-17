@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{Beneficiario, Colaborador, Trabajador, Directivo}
+import cl.familiarenacer.sga.modelos.{Beneficiario, Colaborador, Trabajador, Directivo, PersonaNatural, Entidad}
 import io.getquill._
 
 /**
@@ -12,6 +12,59 @@ import io.getquill._
 class RolesRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
 
+  // ===== LISTADOS INDEPENDIENTES (con datos de persona) =====
+
+  /**
+   * Lista todos los beneficiarios con datos de persona y entidad.
+   */
+  def listarBeneficiarios(): List[(Entidad, PersonaNatural, Beneficiario)] = {
+    ctx.run(
+      for {
+        b <- query[Beneficiario]
+        p <- query[PersonaNatural].filter(_.entidadId == b.personaId)
+        e <- query[Entidad].filter(_.id == p.entidadId)
+      } yield (e, p, b)
+    )
+  }
+
+  /**
+   * Lista todos los colaboradores con datos de persona y entidad.
+   */
+  def listarColaboradores(): List[(Entidad, PersonaNatural, Colaborador)] = {
+    ctx.run(
+      for {
+        c <- query[Colaborador]
+        p <- query[PersonaNatural].filter(_.entidadId == c.personaId)
+        e <- query[Entidad].filter(_.id == p.entidadId)
+      } yield (e, p, c)
+    )
+  }
+
+  /**
+   * Lista todos los trabajadores con datos de persona y entidad.
+   */
+  def listarTrabajadores(): List[(Entidad, PersonaNatural, Trabajador)] = {
+    ctx.run(
+      for {
+        t <- query[Trabajador]
+        p <- query[PersonaNatural].filter(_.entidadId == t.personaId)
+        e <- query[Entidad].filter(_.id == p.entidadId)
+      } yield (e, p, t)
+    )
+  }
+
+  /**
+   * Lista todos los directivos con datos de persona y entidad.
+   */
+  def listarDirectivos(): List[(Entidad, PersonaNatural, Directivo)] = {
+    ctx.run(
+      for {
+        d <- query[Directivo]
+        p <- query[PersonaNatural].filter(_.entidadId == d.personaId)
+        e <- query[Entidad].filter(_.id == p.entidadId)
+      } yield (e, p, d)
+    )
+  }
   // ===== BENEFICIARIO =====
 
   /**
