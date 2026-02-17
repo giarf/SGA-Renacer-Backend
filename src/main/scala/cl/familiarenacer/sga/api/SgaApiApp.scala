@@ -2,7 +2,7 @@ package cl.familiarenacer.sga.api
 
 import cask.model.Response
 import cl.familiarenacer.sga.modelos._
-import cl.familiarenacer.sga.repositorios.{DB, DonacionRepository, EntidadRepository, InventarioRepository}
+import cl.familiarenacer.sga.repositorios.{DB, DonacionRepository, EntidadRepository, InventarioRepository, InstitucionRepository, RolesRepository, FamiliaRepository, EgresoRepository, SolicitudRepository}
 import play.api.libs.json._
 import java.time.LocalDate
 
@@ -19,13 +19,31 @@ object SgaApiApp extends cask.MainRoutes {
   val entidadRepo = new EntidadRepository(DB.ctx)
   val donacionRepo = new DonacionRepository(DB.ctx)
   val inventarioRepo = new InventarioRepository(DB.ctx)
+  val institucionRepo = new InstitucionRepository(DB.ctx)
+  val rolesRepo = new RolesRepository(DB.ctx)
+  val familiaRepo = new FamiliaRepository(DB.ctx)
+  val egresoRepo = new EgresoRepository(DB.ctx)
+  val solicitudRepo = new SolicitudRepository(DB.ctx)
 
   // Formatos JSON Implicítos para los modelos
   implicit val entidadFormat: OFormat[Entidad] = Json.format[Entidad]
   implicit val personaFormat: OFormat[PersonaNatural] = Json.format[PersonaNatural]
+  implicit val institucionFormat: OFormat[Institucion] = Json.format[Institucion]
+  implicit val beneficiarioFormat: OFormat[Beneficiario] = Json.format[Beneficiario]
+  implicit val colaboradorFormat: OFormat[Colaborador] = Json.format[Colaborador]
+  implicit val trabajadorFormat: OFormat[Trabajador] = Json.format[Trabajador]
+  implicit val directivoFormat: OFormat[Directivo] = Json.format[Directivo]
+  implicit val familiaFormat: OFormat[Familia] = Json.format[Familia]
   implicit val ingresoFormat: OFormat[IngresoRecurso] = Json.format[IngresoRecurso]
   implicit val donacionFormat: OFormat[IngresoDonacion] = Json.format[IngresoDonacion]
   implicit val pecuniarioFormat: OFormat[IngresoPecuniario] = Json.format[IngresoPecuniario]
+  implicit val compraFormat: OFormat[IngresoCompra] = Json.format[IngresoCompra]
+  implicit val subvencionFormat: OFormat[IngresoSubvencion] = Json.format[IngresoSubvencion]
+  implicit val detalleIngresoFormat: OFormat[DetalleIngresoRecurso] = Json.format[DetalleIngresoRecurso]
+  implicit val egresoFormat: OFormat[EgresoRecurso] = Json.format[EgresoRecurso]
+  implicit val ayudaSocialFormat: OFormat[EgresoAyudaSocial] = Json.format[EgresoAyudaSocial]
+  implicit val consumoInternoFormat: OFormat[EgresoConsumoInterno] = Json.format[EgresoConsumoInterno]
+  implicit val detalleEgresoFormat: OFormat[DetalleEgresoRecurso] = Json.format[DetalleEgresoRecurso]
   implicit val solicitudFormat: OFormat[SolicitudMaterial] = Json.format[SolicitudMaterial]
   implicit val itemSolicitudFormat: OFormat[ItemSolicitud] = Json.format[ItemSolicitud]
 
@@ -564,6 +582,104 @@ object SgaApiApp extends cask.MainRoutes {
         cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type"   -> "application/json"))
     }
   }
+
+  // ===== INSTITUCIONES DTOs =====
+  case class InstitucionCompletaResponse(
+    id: Int,
+    rut: Option[String],
+    tipoEntidad: Option[String],
+    telefono: Option[String],
+    correo: Option[String],
+    direccion: Option[String],
+    comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
+    razonSocial: String,
+    nombreFantasia: Option[String],
+    subtipoInstitucion: Option[String],
+    rubro: Option[String]
+  )
+  implicit val institucionCompletaFormat: OFormat[InstitucionCompletaResponse] = Json.format[InstitucionCompletaResponse]
+
+  case class RegistrarInstitucionRequest(
+    rut: Option[String],
+    telefono: Option[String],
+    correo: Option[String],
+    direccion: Option[String],
+    comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
+    razonSocial: String,
+    nombreFantasia: Option[String],
+    subtipoInstitucion: Option[String],
+    rubro: Option[String]
+  )
+  implicit val registrarInstitucionFormat: OFormat[RegistrarInstitucionRequest] = Json.format[RegistrarInstitucionRequest]
+
+  case class EditarInstitucionRequest(
+    id: Int,
+    rut: Option[String],
+    tipoEntidad: Option[String],
+    telefono: Option[String],
+    correo: Option[String],
+    direccion: Option[String],
+    comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
+    razonSocial: String,
+    nombreFantasia: Option[String],
+    subtipoInstitucion: Option[String],
+    rubro: Option[String]
+  )
+  implicit val editarInstitucionFormat: OFormat[EditarInstitucionRequest] = Json.format[EditarInstitucionRequest]
+
+  // ===== INGRESOS/EGRESOS DTOs =====
+  case class RegistrarCompraRequest(
+    ingreso: IngresoRecurso,
+    compra: IngresoCompra,
+    detalles: List[DetalleIngresoRecurso]
+  )
+  implicit val registrarCompraFormat: OFormat[RegistrarCompraRequest] = Json.format[RegistrarCompraRequest]
+
+  case class RegistrarPecuniarioRequest(
+    ingreso: IngresoRecurso,
+    pecuniario: IngresoPecuniario
+  )
+  implicit val registrarPecuniarioFormat: OFormat[RegistrarPecuniarioRequest] = Json.format[RegistrarPecuniarioRequest]
+
+  case class RegistrarSubvencionRequest(
+    ingreso: IngresoRecurso,
+    subvencion: IngresoSubvencion,
+    pecuniario: Option[IngresoPecuniario]
+  )
+  implicit val registrarSubvencionFormat: OFormat[RegistrarSubvencionRequest] = Json.format[RegistrarSubvencionRequest]
+
+  case class RegistrarAyudaSocialRequest(
+    egreso: EgresoRecurso,
+    ayuda: EgresoAyudaSocial,
+    detalles: List[DetalleEgresoRecurso]
+  )
+  implicit val registrarAyudaSocialFormat: OFormat[RegistrarAyudaSocialRequest] = Json.format[RegistrarAyudaSocialRequest]
+
+  case class RegistrarConsumoInternoRequest(
+    egreso: EgresoRecurso,
+    consumo: EgresoConsumoInterno,
+    detalles: List[DetalleEgresoRecurso]
+  )
+  implicit val registrarConsumoInternoFormat: OFormat[RegistrarConsumoInternoRequest] = Json.format[RegistrarConsumoInternoRequest]
+
+  // ===== SOLICITUDES DTOs =====
+  case class ActualizarSolicitudRequest(
+    estado: String,
+    autorizadorId: Option[Int]
+  )
+  implicit val actualizarSolicitudFormat: OFormat[ActualizarSolicitudRequest] = Json.format[ActualizarSolicitudRequest]
 
   // Estructura auxiliar para request de actualización completa de Persona
   case class ActualizarPersonaRequest(
