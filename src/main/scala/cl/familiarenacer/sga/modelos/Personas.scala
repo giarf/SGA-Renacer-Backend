@@ -15,7 +15,9 @@ case class PersonaNatural(
   entidadId: Int,
   nombres: String,
   apellidos: Option[String],
-  genero: Option[String]
+  genero: Option[String],
+  ocupacion: Option[String] = None,
+  fechaNacimiento: Option[LocalDate] = None
 )
 
 /**
@@ -50,7 +52,6 @@ case class Institucion(
 case class Beneficiario(
   personaId: Int,
   familiaId: Option[Int],
-  fechaNacimiento: Option[LocalDate],
   escolaridad: Option[String],
   tallaRopa: Option[String],
   observacionesMedicas: Option[String]

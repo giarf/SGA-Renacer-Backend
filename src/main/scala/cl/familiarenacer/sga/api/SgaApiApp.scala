@@ -4,6 +4,7 @@ import cask.model.Response
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.{DB, DonacionRepository, EntidadRepository, InventarioRepository}
 import play.api.libs.json._
+import java.time.LocalDate
 
 /**
  * Servidor Web API REST para SGA Renacer.
@@ -48,9 +49,15 @@ object SgaApiApp extends cask.MainRoutes {
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
     nombres: String,
     apellidos: Option[String],
-    genero: Option[String]
+    genero: Option[String],
+    ocupacion: Option[String] = None,
+    fechaNacimiento: Option[LocalDate] = None
   )
   implicit val editarPersonaFormat: OFormat[EditarPersonaRequest] = Json.format[EditarPersonaRequest]
 
@@ -63,9 +70,15 @@ object SgaApiApp extends cask.MainRoutes {
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
     nombres: String,
     apellidos: Option[String],
-    genero: Option[String]
+    genero: Option[String],
+    ocupacion: Option[String] = None,
+    fechaNacimiento: Option[LocalDate] = None
   )
   implicit val personaCompletaFormat: OFormat[PersonaCompletaResponse] = Json.format[PersonaCompletaResponse]
 
@@ -100,6 +113,17 @@ object SgaApiApp extends cask.MainRoutes {
   // Decorador para CORS eliminado en favor del global
 
   /**
+  * Test
+  */
+  @cask.get("/api/personas/test")
+  def test() = {
+    cask.Response(
+      data = "Test",
+      statusCode = 200,
+      headers = corsHeaders
+    )
+  }
+  /**
    * Endpoint: Listar Entidades
    * GET /api/entidades?tipo=Persona&q=nombre
    * Retorna una lista unificada de EntidadResumen.
@@ -115,14 +139,142 @@ object SgaApiApp extends cask.MainRoutes {
     }
   }
 
+
   /**
-   * Endpoint: Obtener Persona por ID
-   * GET /api/personas?id=3
-   * Retorna los datos completos de una persona (Entidad + PersonaNatural).
+   * Endpoint: OPTIONS para CORS Preflight - Operaciones sobre Persona (GET, PUT, DELETE)
+   * OPTIONS /api/personas/:id
+   */
+  @cask.options("/api/personas/:id")
+  def personaOptions(id: Int) = {
+    cask.Response(
+      data = "",
+      statusCode = 204,
+      headers = corsHeaders
+    )
+  }
+
+  /**
+   * Endpoint: Editar Persona Natural
+   * PUT /api/personas/3
+   * Actualiza datos de una persona y su entidad base.
+   */
+  @cask.put("/api/personas/:id")
+  def editarPersona(id: Int, request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[EditarPersonaRequest]
+      
+      // Override ID from path ensures consistency
+      val targetId = id
+
+      // Crear objetos para actualizar
+      val entidad = Entidad(
+        id = targetId,
+        rut = body.rut,
+        tipoEntidad = Some(body.tipoEntidad),
+        telefono = body.telefono,
+        correo = body.correo,
+        direccion = body.direccion,
+        comuna = body.comuna,
+        redSocial = body.redSocial,
+        gestorId = body.gestorId,
+        anotaciones = body.anotaciones,
+        sector = body.sector,
+        createdAt = None  // No actualizamos createdAt
+      )
+      
+      val persona = PersonaNatural(
+        entidadId = targetId,
+        nombres = body.nombres,
+        apellidos = body.apellidos,
+        genero = body.genero,
+        ocupacion = body.ocupacion,
+        fechaNacimiento = body.fechaNacimiento
+      )
+      
+      val rowsUpdated = entidadRepo.actualizarPersonaNatural(targetId, persona, entidad)
+      
+      if (rowsUpdated > 0) {
+        respond(Json.obj("mensaje" -> "Persona actualizada exitosamente", "filasActualizadas" -> rowsUpdated))
+      } else {
+        respond(Json.obj("error" -> s"No se encontró la persona con ID $targetId"), 404)
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  /**
+   * Endpoint: Eliminar Persona
+   * DELETE /api/personas/3
+   * Elimina una persona y su entidad asociada.
+   */
+  @cask.delete("/api/personas/:id")
+  def eliminarPersona(id: Int) = {
+    try {
+      val eliminado = entidadRepo.eliminarPersona(id)
+      if (eliminado) {
+        respond(Json.obj("mensaje" -> "Persona eliminada exitosamente"))
+      } else {
+        respond(Json.obj("error" -> "No se encontró la persona con ese ID"), 404)
+      }
+    } catch {
+      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
+        respond(Json.obj("error" -> "No se puede eliminar la persona porque tiene registros asociados (Donaciones, Ingresos, etc.)"), 409)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+  /**
+   * Endpoint: Listar Todas las Personas
+   * GET /api/personas
+   * Retorna un arreglo [] con la ficha básica de cada persona.
    */
   @cask.get("/api/personas")
+  def listarPersonas() = {
+    try {
+      val personasDB = entidadRepo.listarTodasLasPersonas()
+      
+      val resultado = personasDB.map { case (entidad, persona) =>
+        PersonaCompletaResponse(
+          id = entidad.id,
+          rut = entidad.rut,
+          tipoEntidad = entidad.tipoEntidad,
+          telefono = entidad.telefono,
+          correo = entidad.correo,
+          direccion = entidad.direccion,
+          comuna = entidad.comuna,
+          redSocial = entidad.redSocial,
+          gestorId = entidad.gestorId,
+          anotaciones = entidad.anotaciones,
+          sector = entidad.sector,
+          nombres = persona.nombres,
+          apellidos = persona.apellidos,
+          genero = persona.genero,
+          ocupacion = persona.ocupacion,
+          fechaNacimiento = persona.fechaNacimiento
+        )
+      }
+      
+      respond(Json.toJson(resultado))
+      
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  /**
+   * Endpoint: Obtener Persona por ID
+   * GET /api/personas/3
+   * Retorna los datos completos de una persona (Entidad + PersonaNatural).
+   */
+  @cask.get("/api/personas/:id")
   def obtenerPersona(id: Int) = {
-    println(s"[DEBUG] Obteniendo persona con ID: $id")
+    println(s"[DEBUG] Request Recibido - Endpoint: /api/personas/$id")
     try {
       entidadRepo.obtenerPersonaCompleta(id) match {
         case Some((entidad, persona)) =>
@@ -134,141 +286,28 @@ object SgaApiApp extends cask.MainRoutes {
             correo = entidad.correo,
             direccion = entidad.direccion,
             comuna = entidad.comuna,
+            redSocial = entidad.redSocial,
+            gestorId = entidad.gestorId,
+            anotaciones = entidad.anotaciones,
+            sector = entidad.sector,
             nombres = persona.nombres,
             apellidos = persona.apellidos,
-            genero = persona.genero
+            genero = persona.genero,
+            ocupacion = persona.ocupacion,
+            fechaNacimiento = persona.fechaNacimiento
           )
-          cask.Response(Json.toJson(response).toString(), 200, headers = Seq("Content-Type" -> "application/json"))
+          respond(Json.toJson(response))
         case None =>
-          cask.Response(Json.obj("error" -> s"Persona con ID $id no encontrada").toString(), 404, headers = Seq("Content-Type" -> "application/json"))
+          println(s"[DEBUG] Persona con ID $id no encontrada")
+          respond(Json.obj("error" -> s"ID $id no encontrado"), 404)
       }
     } catch {
       case e: Exception =>
         e.printStackTrace()
-        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+        respond(Json.obj("error" -> e.getMessage), 500)
     }
   }
-
-
-  /**
-   * Endpoint: OPTIONS para CORS Preflight - Editar Persona
-   * OPTIONS /api/personas/editar
-   */
-  @cask.options("/api/personas/editar")
-  def editarPersonaOptions() = {
-    cask.Response(
-      data = "",
-      statusCode = 204,
-      headers = corsHeaders
-    )
-  }
-
-  /**
-   * Endpoint: Editar Persona Natural
-   * PUT /api/personas/editar
-   * Actualiza datos de una persona y su entidad base.
-   */
-  @cask.put("/api/personas/editar")
-  def editarPersona(request: cask.Request) = {
-    try {
-      val body = Json.parse(request.text()).as[EditarPersonaRequest]
-      
-      // Crear objetos para actualizar
-      val entidad = Entidad(
-        id = body.id,
-        rut = body.rut,
-        tipoEntidad = Some(body.tipoEntidad),
-        telefono = body.telefono,
-        correo = body.correo,
-        direccion = body.direccion,
-        comuna = body.comuna,
-        createdAt = None  // No actualizamos createdAt
-      )
-      
-      val persona = PersonaNatural(
-        entidadId = body.id,
-        nombres = body.nombres,
-        apellidos = body.apellidos,
-        genero = body.genero
-      )
-      
-      val rowsUpdated = entidadRepo.actualizarPersonaNatural(body.id, persona, entidad)
-      
-      if (rowsUpdated > 0) {
-        cask.Response(
-          Json.obj("mensaje" -> "Persona actualizada exitosamente", "filasActualizadas" -> rowsUpdated).toString(),
-          200,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-      } else {
-        cask.Response(
-          Json.obj("error" -> s"No se encontró la persona con ID ${body.id}").toString(),
-          404,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-      }
-    } catch {
-      case e: Exception =>
-        e.printStackTrace()
-        cask.Response(
-          Json.obj("error" -> e.getMessage).toString(),
-          500,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-    }
-  }
-
-  /**
-   * Endpoint: OPTIONS para CORS Preflight - Eliminar Persona
-   * OPTIONS /api/personas/eliminar/:id
-   */
-  @cask.options("/api/personas/eliminar/:id")
-  def eliminarPersonaOptions(id: Int) = {
-    cask.Response(
-      data = "",
-      statusCode = 204,
-      headers = corsHeaders
-    )
-  }
-
-  /**
-   * Endpoint: Eliminar Persona
-   * DELETE /api/personas/eliminar/:id
-   * Elimina una persona y su entidad asociada.
-   */
-  @cask.delete("/api/personas/eliminar/:id")
-  def eliminarPersona(id: Int) = {
-    try {
-      val eliminado = entidadRepo.eliminarPersona(id)
-      if (eliminado) {
-        cask.Response(
-          Json.obj("mensaje" -> "Persona eliminada exitosamente").toString(),
-          200,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-      } else {
-        cask.Response(
-          Json.obj("error" -> "No se encontró la persona con ese ID").toString(),
-          404,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-      }
-    } catch {
-      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
-        cask.Response(
-          Json.obj("error" -> "No se puede eliminar la persona porque tiene registros asociados (Donaciones, Ingresos, etc.)").toString(),
-          409,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-      case e: Exception =>
-        e.printStackTrace()
-        cask.Response(
-          Json.obj("error" -> e.getMessage).toString(),
-          500,
-          headers = Seq("Content-Type" -> "application/json")
-        )
-    }
-  }
+    
 
   /**
    * Endpoint: Registrar Donación de Dinero
@@ -535,31 +574,42 @@ object SgaApiApp extends cask.MainRoutes {
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
     nombres: String,
     apellidos: Option[String],
-    genero: Option[String]
+    genero: Option[String],
+    ocupacion: Option[String] = None,
+    fechaNacimiento: Option[LocalDate] = None
   )
-  implicit val actualizarPersonaFormat = Json.format[ActualizarPersonaRequest]
+  implicit val actualizarPersonaFormat: OFormat[ActualizarPersonaRequest] = Json.format[ActualizarPersonaRequest]
 
   // Estructura para capturar los datos de una nueva persona
   case class RegistrarPersonaRequest(
     rut: Option[String],
-    tipoEntidad: Option[String],
     telefono: Option[String],
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    redSocial: Option[String] = None,
+    gestorId: Option[Int] = None,
+    anotaciones: Option[String] = None,
+    sector: Option[String] = None,
     nombres: String,
     apellidos: Option[String],
-    genero: Option[String]
+    genero: Option[String],
+    ocupacion: Option[String] = None,
+    fechaNacimiento: Option[LocalDate] = None
   )
-  implicit val registrarPersonaFormat = Json.format[RegistrarPersonaRequest]
+  implicit val registrarPersonaFormat: OFormat[RegistrarPersonaRequest] = Json.format[RegistrarPersonaRequest]
 
   /**
    * Endpoint: OPTIONS para CORS Preflight - Registrar Persona
-   * OPTIONS /api/entidades/registrar
+   * OPTIONS /api/personas
    */
-  @cask.options("/api/entidades/registrar")
+  @cask.options("/api/personas")
   def registrarPersonaOptions() = {
     cask.Response(
       data = "",
@@ -570,45 +620,61 @@ object SgaApiApp extends cask.MainRoutes {
 
   /**
    * Endpoint: Registrar Nuevo Persona
-   * POST /api/entidades/registrar
+   * POST /api/personas
    */
-  @cask.post("/api/entidades/registrar")
-  def registrarPersona(request: cask.Request) = {
-    try {
-      val body = Json.parse(request.text()).as[RegistrarPersonaRequest]
-
-      // 1. Construimos el objeto Entidad (sin ID, porque lo genera la DB)
-      val nuevaEntidad = Entidad(
-        id = 0, // Quill/Postgres ignorará esto al ser auto-incremental
-        rut = body.rut,
-        tipoEntidad = body.tipoEntidad.orElse(Some("Persona")),
-        telefono = body.telefono,
-        correo = body.correo,
-        direccion = body.direccion,
-        comuna = body.comuna,
-        createdAt = Some(java.time.LocalDateTime.now())
-      )
-
-      // 2. Construimos el objeto Persona
-      val nuevaPersona = PersonaNatural(
-        entidadId = 0, // Se llenará con el ID generado de la entidad
-        nombres = body.nombres,
-        apellidos = body.apellidos,
-        genero = body.genero
-      )
-
-      // 3. Llamada al repositorio (debe ser transaccional)
-      // Corregido orden de argumentos: (persona, entidad)
-      val idGenerado = entidadRepo.registrarPersonaNatural(nuevaPersona, nuevaEntidad)
-
-      cask.Response(
-        Json.obj("mensaje" -> "Persona creada exitosamente", "id" -> idGenerado).toString(),
-        201, 
-        headers = Seq("Content-Type" -> "application/json")
-      )
+  @cask.post("/api/personas")
+  def registrarPersona(request: cask.Request): cask.Response[String] = {
+    val maybeBody: Either[cask.Response[String], RegistrarPersonaRequest] = try {
+      Right(Json.parse(request.text()).as[RegistrarPersonaRequest])
     } catch {
       case e: Exception =>
-        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500)
+        Left(respond(Json.obj("error" -> "JSON inválido o campos faltantes"), 400))
+    }
+
+    maybeBody match {
+      case Left(errorResponse) => errorResponse
+      case Right(body) =>
+        try {
+          // 1. Construimos el objeto Entidad (sin ID, porque lo genera la DB)
+          val nuevaEntidad = Entidad(
+            id = 0, // Quill/Postgres ignorará esto al ser auto-incremental
+            rut = body.rut,
+            tipoEntidad = Some("Persona"),
+            telefono = body.telefono,
+            correo = body.correo,
+            direccion = body.direccion,
+            comuna = body.comuna,
+            redSocial = body.redSocial,
+            gestorId = body.gestorId,
+            anotaciones = body.anotaciones,
+            sector = body.sector,
+            createdAt = Some(java.time.LocalDateTime.now())
+          )
+
+          // 2. Construimos el objeto Persona
+          val nuevaPersona = PersonaNatural(
+            entidadId = 0, // Se llenará con el ID generado de la entidad
+            nombres = body.nombres,
+            apellidos = body.apellidos,
+            genero = body.genero,
+            ocupacion = body.ocupacion,
+            fechaNacimiento = body.fechaNacimiento
+          )
+
+          // 3. Llamada al repositorio (debe ser transaccional)
+          val idGenerado = entidadRepo.registrarPersonaNatural(nuevaPersona, nuevaEntidad)
+
+          respond(
+            Json.obj("mensaje" -> "Persona creada exitosamente", "id" -> idGenerado),
+            201
+          )
+        } catch {
+          case e: org.postgresql.util.PSQLException if e.getSQLState == "23505" =>
+            respond(Json.obj("error" -> s"Ya existe una entidad registrada con el RUT ${body.rut.getOrElse("")}"), 409)
+          case e: Exception =>
+            e.printStackTrace()
+            respond(Json.obj("error" -> e.getMessage), 500)
+        }
     }
   }
 
@@ -631,6 +697,10 @@ object SgaApiApp extends cask.MainRoutes {
         correo = body.correo,
         direccion = body.direccion,
         comuna = body.comuna,
+        redSocial = body.redSocial,
+        gestorId = body.gestorId,
+        anotaciones = body.anotaciones,
+        sector = body.sector,
         createdAt = None
       )
 
@@ -638,7 +708,9 @@ object SgaApiApp extends cask.MainRoutes {
         entidadId = body.id,
         nombres = body.nombres,
         apellidos = body.apellidos,
-        genero = body.genero
+        genero = body.genero,
+        ocupacion = body.ocupacion,
+        fechaNacimiento = body.fechaNacimiento
       )
 
       entidadRepo.actualizarPersona(entidad, persona)
@@ -665,6 +737,7 @@ object SgaApiApp extends cask.MainRoutes {
     }
   }
 
+
   // CORS Headers
   val corsHeaders = Seq(
     "Access-Control-Allow-Origin" -> "http://localhost:5173",
@@ -673,14 +746,19 @@ object SgaApiApp extends cask.MainRoutes {
     "Access-Control-Max-Age" -> "86400"
   )
 
-  // Decorador para agregar CORS headers a todas las respuestas
-  override def mainDecorators = Seq(new CorsDecorator())
-
-  class CorsDecorator extends cask.RawDecorator {
-    def wrapFunction(ctx: cask.Request, delegate: Delegate) = {
-      delegate(Map()).map(r => r.copy(headers = r.headers ++ corsHeaders))
-    }
+  /**
+   * Genera una respuesta JSON estandarizada con headers de CORS.
+   * Evita el uso de decoradores que rompen los Path Parameters (:id).
+   */
+  def respond(data: JsValue, statusCode: Int = 200): cask.Response[String] = {
+    cask.Response(
+      data = data.toString(),
+      statusCode = statusCode,
+      headers = Seq("Content-Type" -> "application/json") ++ corsHeaders
+    )
   }
+
+
 
   initialize()
 }

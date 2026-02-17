@@ -17,11 +17,5 @@ package cl.familiarenacer.sga.modelos
 case class EntidadResumen(
   id: Int,
   identificador: String,
-  nombreCompleto: String,
-  tipoEntidad: String,
-  correo: Option[String],
-  telefono: Option[String],
-  direccion: Option[String],
-  comuna: Option[String],
-  genero: Option[String]
+  nombreCompleto: String
 )

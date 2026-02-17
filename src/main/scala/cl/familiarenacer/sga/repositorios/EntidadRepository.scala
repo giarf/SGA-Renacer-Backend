@@ -88,7 +88,11 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             _.telefono -> lift(entidad.telefono),
             _.correo -> lift(entidad.correo),
             _.direccion -> lift(entidad.direccion),
-            _.comuna -> lift(entidad.comuna)
+            _.comuna -> lift(entidad.comuna),
+            _.redSocial -> lift(entidad.redSocial),
+            _.gestorId -> lift(entidad.gestorId),
+            _.anotaciones -> lift(entidad.anotaciones),
+            _.sector -> lift(entidad.sector)
             // No actualizamos createdAt
           )
       )
@@ -100,7 +104,9 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           .update(
             _.nombres -> lift(persona.nombres),
             _.apellidos -> lift(persona.apellidos),
-            _.genero -> lift(persona.genero)
+            _.genero -> lift(persona.genero),
+            _.ocupacion -> lift(persona.ocupacion),
+            _.fechaNacimiento -> lift(persona.fechaNacimiento)
           )
       )
 
@@ -124,16 +130,15 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   }
 
   /**
-   * Lista todas las Personas Naturales con sus datos de Entidad.
-   *
-   * @return Lista de tuplas (Entidad, PersonaNatural).
+   * Lista todas las Personas Naturales con sus datos de Entidad (Versión sugerida).
    */
-  def listarTodasPersonas(): List[(Entidad, PersonaNatural)] = {
-    ctx.run(
+  def listarTodasLasPersonas(): List[(Entidad, PersonaNatural)] = {
+    val q = quote {
       query[Entidad]
-        .filter(_.tipoEntidad.contains("Persona"))
-        .join(query[PersonaNatural]).on((e, p) => e.id == p.entidadId)
-    )
+        .join(query[PersonaNatural])
+        .on(_.id == _.entidadId)
+    }
+    ctx.run(q)
   }
 
   /**
@@ -180,20 +185,22 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             .leftJoin(query[PersonaNatural]).on(_.id == _.entidadId)
             .leftJoin(query[Institucion]).on(_._1.id == _.entidadId)
             .filter { case ((e, p), i) =>
-              // Filtro de tipo
-              lift(tipoFiltro).forall(tf => e.tipoEntidad.contains(tf)) &&
-              // Filtro de búsqueda con concatenación de nombres completos
+              // Filtro de tipo (case-insensitive)
+              (lift(tipoFiltro).isEmpty || e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoFiltro.map(_.toLowerCase).getOrElse("")))) &&
+              // Filtro de búsqueda
               (
-                // Búsqueda en nombres concatenados de PersonaNatural (nombres + ' ' + apellidos)
-                (p.isDefined && (
-                  infix"unaccent(lower(coalesce(${p.map(_.nombres)}, '') || ' ' || coalesce(${p.flatMap(_.apellidos)}, '')))".as[String] like lift(terminoLike)
-                )) ||
-                // Búsqueda en razonSocial de Institucion
-                (i.isDefined && (
-                  infix"unaccent(lower(${i.map(_.razonSocial)}))".as[Option[String]].exists(r => r like lift(terminoLike))
-                )) ||
-                // Búsqueda en RUT
-                infix"lower(${e.rut})".as[Option[String]].exists(r => r like lift(terminoLike))
+              // Filtro de búsqueda unificado y robusto
+              infix"""
+                (unaccent(lower(
+                  coalesce(${p.map(_.nombres)}, '') || ' ' || 
+                  coalesce(${p.flatMap(_.apellidos)}, '') || ' ' || 
+                  coalesce(${p.flatMap(_.ocupacion)}, '') || ' ' ||
+                  coalesce(${i.map(_.razonSocial)}, '') || ' ' ||
+                  coalesce(${i.flatMap(_.nombreFantasia)}, '') || ' ' ||
+                  coalesce(${e.anotaciones}, '')
+                )) LIKE unaccent(lower(${lift(terminoLike)})))
+                OR (lower(${e.rut}) LIKE ${lift(terminoLike)})
+              """.as[Boolean]
               )
             }
             .sortBy { case ((e, p), i) =>
@@ -214,18 +221,12 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
                 e.rut.getOrElse("Sin RUT"),
                 p.map(x => x.nombres + " " + x.apellidos.getOrElse("")).getOrElse(
                   i.map(_.razonSocial).getOrElse("Sin Nombre")
-                ),
-                e.tipoEntidad.getOrElse("Desconocido"),
-                e.correo,
-                e.telefono,
-                e.direccion,
-                e.comuna,
-                p.map(_.genero) // Option[Option[String]]
+                )
               )
             }
         }
-        ctx.run(q).map { case (id, ident, nombre, tipo, correo, tel, dir, com, genOpt) =>
-          EntidadResumen(id, ident, nombre, tipo, correo, tel, dir, com, genOpt.flatten)
+        ctx.run(q).map { case (id, ident, nombre) =>
+          EntidadResumen(id, ident, nombre)
         }
         
       case _ =>
@@ -235,7 +236,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             .leftJoin(query[PersonaNatural]).on(_.id == _.entidadId)
             .leftJoin(query[Institucion]).on(_._1.id == _.entidadId)
             .filter { case ((e, p), i) =>
-              lift(tipoFiltro).forall(tf => e.tipoEntidad.contains(tf))
+              (lift(tipoFiltro).isEmpty || e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoFiltro.map(_.toLowerCase).getOrElse(""))))
             }
             .map { case ((e, p), i) =>
               (
@@ -243,18 +244,12 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
                 e.rut.getOrElse("Sin RUT"),
                 p.map(x => x.nombres + " " + x.apellidos.getOrElse("")).getOrElse(
                   i.map(_.razonSocial).getOrElse("Sin Nombre")
-                ),
-                e.tipoEntidad.getOrElse("Desconocido"),
-                e.correo,
-                e.telefono,
-                e.direccion,
-                e.comuna,
-                p.map(_.genero) // Option[Option[String]]
+                )
               )
             }
         }
-        ctx.run(q).map { case (id, ident, nombre, tipo, correo, tel, dir, com, genOpt) =>
-          EntidadResumen(id, ident, nombre, tipo, correo, tel, dir, com, genOpt.flatten)
+        ctx.run(q).map { case (id, ident, nombre) =>
+          EntidadResumen(id, ident, nombre)
         }
     }
   }

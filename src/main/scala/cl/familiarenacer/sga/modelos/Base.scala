@@ -24,6 +24,10 @@ case class Entidad(
   correo: Option[String],
   direccion: Option[String],
   comuna: Option[String],
+  redSocial: Option[String] = None,
+  gestorId: Option[Int] = None,
+  anotaciones: Option[String] = None,
+  sector: Option[String] = None,
   createdAt: Option[LocalDateTime]
 )
 
