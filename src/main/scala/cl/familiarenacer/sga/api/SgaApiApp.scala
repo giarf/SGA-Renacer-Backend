@@ -2,7 +2,7 @@ package cl.familiarenacer.sga.api
 
 import cask.model.Response
 import cl.familiarenacer.sga.modelos._
-import cl.familiarenacer.sga.repositorios.{DB, DonacionRepository, EntidadRepository, InventarioRepository, InstitucionRepository, RolesRepository, FamiliaRepository, EgresoRepository, SolicitudRepository}
+import cl.familiarenacer.sga.repositorios.{DB, DonacionRepository, EntidadRepository, InventarioRepository, InstitucionRepository, RolesRepository, FamiliaRepository, EgresoRepository, SolicitudRepository, CuentaFinancieraRepository}
 import play.api.libs.json._
 import java.time.LocalDate
 
@@ -24,11 +24,13 @@ object SgaApiApp extends cask.MainRoutes {
   val familiaRepo = new FamiliaRepository(DB.ctx)
   val egresoRepo = new EgresoRepository(DB.ctx)
   val solicitudRepo = new SolicitudRepository(DB.ctx)
+  val cuentaRepo = new CuentaFinancieraRepository(DB.ctx)
 
   // Formatos JSON Implicítos para los modelos
   implicit val entidadFormat: OFormat[Entidad] = Json.format[Entidad]
   implicit val personaFormat: OFormat[PersonaNatural] = Json.format[PersonaNatural]
   implicit val institucionFormat: OFormat[Institucion] = Json.format[Institucion]
+  implicit val cuentaFinancieraFormat: OFormat[CuentaFinanciera] = Json.format[CuentaFinanciera]
   implicit val beneficiarioFormat: OFormat[Beneficiario] = Json.format[Beneficiario]
   implicit val colaboradorFormat: OFormat[Colaborador] = Json.format[Colaborador]
   implicit val trabajadorFormat: OFormat[Trabajador] = Json.format[Trabajador]
@@ -446,11 +448,11 @@ object SgaApiApp extends cask.MainRoutes {
   }
 
   /**
-   * Endpoint: OPTIONS para CORS Preflight - Registrar Ítem
-   * OPTIONS /api/catalogo/registrar
+   * Endpoint: OPTIONS para CORS Preflight - Catálogo
+   * OPTIONS /api/catalogo
    */
-  @cask.options("/api/catalogo/registrar")
-  def registrarItemOptions() = {
+  @cask.options("/api/catalogo")
+  def catalogoOptions() = {
     cask.Response(
       data = "",
       statusCode = 204,
@@ -460,29 +462,24 @@ object SgaApiApp extends cask.MainRoutes {
 
   /**
    * Endpoint: Registrar Nuevo Ítem en el Catálogo
-   * POST /api/catalogo/registrar
+   * POST /api/catalogo
    */
-  @cask.post("/api/catalogo/registrar")
+  @cask.post("/api/catalogo")
   def registrarItemCatalogo(request: cask.Request) = {
     try {
       implicit val itemFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
       val item = Json.parse(request.text()).as[ItemCatalogo]
       
-      // Validaciones
       if (item.nombre.isEmpty || item.nombre.exists(_.trim.isEmpty)) {
-        cask.Response(Json.obj("error" -> "El nombre del ítem es obligatorio").toString(), 400, headers = Seq("Content-Type" -> "application/json"))
+        respond(Json.obj("error" -> "El nombre del ítem es obligatorio"), 400)
       } else {
         val idGenerado = inventarioRepo.registrarItem(item)
-        cask.Response(
-          Json.obj("id" -> idGenerado, "mensaje" -> "Ítem registrado exitosamente en el catálogo").toString(),
-          201,
-          headers = Seq("Content-Type" -> "application/json")
-        )
+        respond(Json.obj("id" -> idGenerado, "mensaje" -> "Ítem registrado exitosamente en el catálogo"), 201)
       }
     } catch {
       case e: Exception =>
         e.printStackTrace()
-        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+        respond(Json.obj("error" -> e.getMessage), 500)
     }
   }
 
@@ -500,11 +497,11 @@ object SgaApiApp extends cask.MainRoutes {
   implicit val actualizarItemFormat: OFormat[ActualizarItemRequest] = Json.format[ActualizarItemRequest]
 
   /**
-   * Endpoint: OPTIONS para CORS Preflight - Actualizar Ítem
-   * OPTIONS /api/catalogo/actualizar
+   * Endpoint: OPTIONS para CORS Preflight - Catálogo por ID
+   * OPTIONS /api/catalogo/:id
    */
-  @cask.options("/api/catalogo/actualizar")
-  def actualizarItemOptions() = {
+  @cask.options("/api/catalogo/:id")
+  def catalogoByIdOptions(id: Int) = {
     cask.Response(
       data = "",
       statusCode = 204,
@@ -514,16 +511,16 @@ object SgaApiApp extends cask.MainRoutes {
 
   /**
    * Endpoint: Actualizar Ítem del Catálogo
-   * POST /api/catalogo/actualizar
+   * PUT /api/catalogo/:id
    * PROTEGE: No permite modificar stockActual, precioPromedioPonderado, valorTotalStock
    */
-  @cask.post("/api/catalogo/actualizar")
-  def actualizarItemCatalogo(request: cask.Request) = {
+  @cask.put("/api/catalogo/:id")
+  def actualizarItemCatalogo(id: Int, request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[ActualizarItemRequest]
       
       val filasActualizadas = inventarioRepo.actualizarItemBasico(
-        body.id,
+        id,
         body.nombre,
         body.categoria,
         body.unidadMedidaEstandar,
@@ -531,22 +528,14 @@ object SgaApiApp extends cask.MainRoutes {
       )
       
       if (filasActualizadas > 0) {
-        cask.Response(
-          Json.obj("mensaje" -> "Ítem actualizado exitosamente", "filasActualizadas" -> filasActualizadas).toString(),
-          200,
-          headers = Seq("Content-Type" -> "application/json")
-        )
+        respond(Json.obj("mensaje" -> "Ítem actualizado exitosamente", "filasActualizadas" -> filasActualizadas))
       } else {
-        cask.Response(
-          Json.obj("error" -> s"No se encontró el ítem con ID ${body.id}").toString(),
-          404,
-          headers = Seq("Content-Type" -> "application/json")
-        )
+        respond(Json.obj("error" -> s"No se encontró el ítem con ID $id"), 404)
       }
     } catch {
       case e: Exception =>
         e.printStackTrace()
-        cask.Response(Json.obj("error" -> e.getMessage).toString(), 500, headers = Seq("Content-Type" -> "application/json"))
+        respond(Json.obj("error" -> e.getMessage), 500)
     }
   }
 
@@ -850,6 +839,116 @@ object SgaApiApp extends cask.MainRoutes {
     } catch {
       case e: Exception =>
         cask.Response(Json.obj("error" -> e.getMessage).toString(), 500)
+    }
+  }
+
+
+  // ========================================
+  // CUENTAS FINANCIERAS ENDPOINTS
+  // ========================================
+
+  @cask.options("/api/cuentas")
+  def cuentasOptions() = {
+    cask.Response(data = "", statusCode = 204, headers = corsHeaders)
+  }
+
+  @cask.get("/api/cuentas")
+  def listarCuentas() = {
+    try {
+      val cuentas = cuentaRepo.listarCuentas()
+      respond(Json.toJson(cuentas))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.post("/api/cuentas")
+  def crearCuenta(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[CuentaFinanciera]
+      val idGenerado = cuentaRepo.crearCuenta(body)
+      respond(Json.obj("id" -> idGenerado, "mensaje" -> "Cuenta creada exitosamente"), 201)
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.options("/api/cuentas/:id")
+  def cuentaByIdOptions(id: Int) = {
+    cask.Response(data = "", statusCode = 204, headers = corsHeaders)
+  }
+
+  @cask.get("/api/cuentas/:id")
+  def obtenerCuenta(id: Int) = {
+    try {
+      cuentaRepo.obtenerCuenta(id) match {
+        case Some(cuenta) => respond(Json.toJson(cuenta))
+        case None => respond(Json.obj("error" -> s"Cuenta con ID $id no encontrada"), 404)
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.put("/api/cuentas/:id")
+  def actualizarCuenta(id: Int, request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text())
+      val nombre = (body \ "nombre").as[String]
+      val rowsUpdated = cuentaRepo.actualizarCuenta(id, nombre)
+      if (rowsUpdated > 0) {
+        respond(Json.obj("mensaje" -> "Cuenta actualizada exitosamente"))
+      } else {
+        respond(Json.obj("error" -> s"No se encontró la cuenta con ID $id"), 404)
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.delete("/api/cuentas/:id")
+  def eliminarCuenta(id: Int) = {
+    try {
+      val eliminado = cuentaRepo.eliminarCuenta(id)
+      if (eliminado) {
+        respond(Json.obj("mensaje" -> "Cuenta eliminada exitosamente"))
+      } else {
+        respond(Json.obj("error" -> "No se encontró la cuenta"), 404)
+      }
+    } catch {
+      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
+        respond(Json.obj("error" -> "No se puede eliminar la cuenta porque tiene movimientos asociados"), 409)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.options("/api/cuentas/:id/movimientos")
+  def cuentaMovimientosOptions(id: Int) = {
+    cask.Response(data = "", statusCode = 204, headers = corsHeaders)
+  }
+
+  @cask.get("/api/cuentas/:id/movimientos")
+  def obtenerMovimientosCuenta(id: Int) = {
+    try {
+      val (ingresos, egresos) = cuentaRepo.obtenerMovimientos(id)
+      respond(Json.obj(
+        "ingresos" -> Json.toJson(ingresos),
+        "egresos" -> Json.toJson(egresos)
+      ))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
     }
   }
 

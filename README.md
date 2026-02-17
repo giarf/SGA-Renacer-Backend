@@ -434,11 +434,77 @@ Typed egreso creation.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/catalogo` | List all catalog items |
-| `POST` | `/api/catalogo/registrar` | Create new catalog item |
-| `POST` | `/api/catalogo/actualizar` | Update catalog item |
+| `POST` | `/api/catalogo` | Create new catalog item |
+| `PUT` | `/api/catalogo/:id` | Update catalog item |
 | `GET` | `/api/catalogo/buscar?q=...` | Search items by name |
 | `GET` | `/api/catalogo/utilitarios` | Get categories & units |
 | `GET` | `/api/catalogo/utilitarios/categorias` | Get unique categories |
+
+---
+
+### Cuentas Financieras (Financial Accounts)
+
+Manage financial accounts (cajas) and view their associated movements.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/cuentas` | List all accounts |
+| `POST` | `/api/cuentas` | Create account |
+| `GET` | `/api/cuentas/:id` | Get account details + balance |
+| `PUT` | `/api/cuentas/:id` | Update account name |
+| `DELETE` | `/api/cuentas/:id` | Delete account (if no movements) |
+| `GET` | `/api/cuentas/:id/movimientos` | List all movements in/out |
+
+<details>
+<summary><strong>POST /api/cuentas</strong> — Create account</summary>
+
+```json
+{
+  "id": 0,
+  "nombre": "Caja Chica",
+  "saldoActual": 0
+}
+```
+</details>
+
+<details>
+<summary><strong>PUT /api/cuentas/:id</strong> — Update name</summary>
+
+```json
+{
+  "nombre": "Banco Estado - Cuenta Corriente"
+}
+```
+</details>
+
+<details>
+<summary><strong>GET /api/cuentas/:id/movimientos</strong> — Response</summary>
+
+Returns all ingresos (pecuniarios deposited into this account) and egresos (compras paid from this account):
+
+```json
+{
+  "ingresos": [
+    {
+      "id": 5,
+      "origenEntidadId": 2,
+      "tipoTransaccion": "Donacion",
+      "montoTotal": 50000,
+      "estado": "Cerrado"
+    }
+  ],
+  "egresos": [
+    {
+      "id": 8,
+      "origenEntidadId": 10,
+      "tipoTransaccion": "Compra",
+      "montoTotal": 120000,
+      "estado": "Cerrado"
+    }
+  ]
+}
+```
+</details>
 
 ---
 
@@ -550,6 +616,7 @@ src/main/scala/cl/familiarenacer/sga/
     ├── DonacionRepository.scala     # All ingreso types
     ├── EgresoRepository.scala       # All egreso types
     ├── SolicitudRepository.scala    # Solicitudes CRUD
+    ├── CuentaFinancieraRepository.scala # Financial account CRUD + movements
     └── InventarioRepository.scala   # Inventory & catalog operations
 ```
 
