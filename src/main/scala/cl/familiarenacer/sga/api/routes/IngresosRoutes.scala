@@ -101,5 +101,41 @@ class IngresosRoutes(
     }
   }
 
+  @cask.options("/api/ingresos/compra")
+  def compraOptions() = corsOptions()
+
+  @cask.post("/api/ingresos/compra")
+  def registrarCompra(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[RegistrarCompraRequest]
+      val id = donacionRepo.registrarCompra(body.ingreso, body.compra, body.detalles)
+      respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Compra registrada exitosamente"), 201)
+    } catch {
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.options("/api/ingresos/subvencion")
+  def subvencionOptions() = corsOptions()
+
+  @cask.post("/api/ingresos/subvencion")
+  def registrarSubvencion(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[RegistrarSubvencionRequest]
+      val id = donacionRepo.registrarSubvencion(body.ingreso, body.subvencion, body.pecuniario)
+      respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Subvención registrada exitosamente"), 201)
+    } catch {
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
   initialize()
 }
