@@ -1,0 +1,23 @@
+meta {
+  name: Get Persona By ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/personas/{{personaId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response contains correct data", function() {
+    expect(res.body.id).to.equal(Number(bru.getVar("personaId")));
+    expect(res.body.nombres).to.equal("Juan");
+    expect(res.body.rut).to.equal(bru.getVar("personaRut"));
+  });
+}

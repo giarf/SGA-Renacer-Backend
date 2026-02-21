@@ -1,0 +1,57 @@
+meta {
+  name: Create Persona
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/personas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "rut": "{{personaRut}}",
+    "tipoEntidad": "Persona",
+    "telefono": "+56912345678",
+    "correo": "juan.perez.{{uniqueId}}@example.com",
+    "direccion": "Calle Random {{uniqueId}}",
+    "comuna": "Quillota",
+    "nombres": "Juan",
+    "apellidos": "Pérez",
+    "genero": "Masculino",
+    "ocupacion": "Tester",
+    "fechaNacimiento": "1990-05-15"
+  }
+}
+
+script:pre-request {
+  const uniqueId = Math.floor(Math.random() * 100000);
+  const rutBody = Math.floor(Math.random() * 90000000) + 10000000;
+  const rut = `${rutBody}-K`; // Simplified RUT for testing
+  
+  bru.setVar("uniqueId", uniqueId);
+  bru.setVar("personaRut", rut);
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.id) {
+    bru.setVar("personaId", res.body.id);
+  }
+}
+
+tests {
+  test("Status code is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+
+  test("Response has ID", function() {
+    expect(res.body.id).to.be.a("number");
+    expect(res.body.id).to.be.greaterThan(0);
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.equal("Persona creada exitosamente");
+  });
+}

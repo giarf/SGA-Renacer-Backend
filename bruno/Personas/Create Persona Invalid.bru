@@ -1,0 +1,30 @@
+meta {
+  name: Create Persona Invalid
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/personas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "telefono": "12345678",
+    "rut": "11.222.333-4"
+    // Missing 'nombres' (Required)
+  }
+}
+
+tests {
+  test("Status code is 400", function() {
+    expect(res.status).to.equal(400);
+  });
+
+  test("Error message indicates invalid input", function() {
+    // The current backend implementation returns a generic message for JSON/mapping errors in the catch block
+    expect(res.body.error).to.be.a("string");
+  });
+}

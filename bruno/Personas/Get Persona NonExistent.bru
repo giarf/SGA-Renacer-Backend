@@ -1,0 +1,21 @@
+meta {
+  name: Get Persona NonExistent
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/personas/99999999
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 404", function() {
+    expect(res.status).to.equal(404);
+  });
+
+  test("Error message indicates not found", function() {
+    expect(res.body.error).to.include("no encontrado");
+  });
+}

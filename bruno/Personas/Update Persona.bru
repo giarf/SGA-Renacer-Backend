@@ -1,0 +1,38 @@
+meta {
+  name: Update Persona
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/personas/{{personaId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": {{personaId}},
+    "rut": "{{personaRut}}",
+    "tipoEntidad": "Persona",
+    "telefono": "+56912345678",
+    "correo": "juan.updated.{{uniqueId}}@example.com",
+    "direccion": "Calle Updated 123",
+    "comuna": "Quillota",
+    "nombres": "Juan Updated",
+    "apellidos": "Pérez",
+    "genero": "Masculino",
+    "ocupacion": "Tester Lead",
+    "fechaNacimiento": "1990-05-15"
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Update success message", function() {
+    expect(res.body.mensaje).to.include("actualizada exitosamente");
+  });
+}

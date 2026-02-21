@@ -1,0 +1,19 @@
+meta {
+  name: Put Persona indivudual
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/personas/3
+  body: json
+  auth: none
+}
+
+body:json {
+  {"id":3,"rut":"20123456-7","tipoEntidad":"Persona","telefono":"+56912345678","correo":"gabriel.inline@test.com","direccion":"Calle Falsa 123","comuna":"Quillota","nombres":"Gabriel","apellidos":"Rojas","genero":"Masculino"}
+}
+
+docs {
+  This request retrieves a list of users from the JSONPlaceholder API.
+}

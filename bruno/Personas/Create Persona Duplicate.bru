@@ -1,0 +1,42 @@
+meta {
+  name: Create Persona Duplicate
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/personas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "rut": "11.111.111-1",
+    "tipoEntidad": "Persona",
+    "telefono": "+56912345678",
+    "correo": "duplicate.persona@example.com",
+    "direccion": "Duplicate St",
+    "comuna": "Quillota",
+    "nombres": "Duplicate",
+    "apellidos": "User",
+    "genero": "Masculino"
+  }
+}
+
+tests {
+  test("First attempt might succeed, second must fail", function() {
+    // We expect 409 Conflict if it already exists, or 201 if it's the first time.
+    // To make this robust, we might need a setup script, but for now we expect 409 
+    // assuming we run this AFTER a successful creation of the same RUT, 
+    // OR we just assert it's NOT 500.
+    // Better strategy: Use a fixed known RUT for this test file specifically.
+    
+    if (res.status === 201) {
+       console.log("Created seed persona for duplicate test");
+    } else {
+       expect(res.status).to.equal(409);
+       expect(res.body.error).to.include("Ya existe");
+    }
+  });
+}

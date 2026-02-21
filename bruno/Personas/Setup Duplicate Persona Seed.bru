@@ -1,0 +1,32 @@
+meta {
+  name: Setup Duplicate Persona Seed
+  type: http
+  seq: 5.9
+}
+
+post {
+  url: {{baseUrl}}/api/personas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "rut": "11.111.111-1",
+    "tipoEntidad": "Persona",
+    "telefono": "+56912345678",
+    "correo": "duplicate.persona@example.com",
+    "direccion": "Duplicate St",
+    "comuna": "Quillota",
+    "nombres": "Duplicate Seed",
+    "apellidos": "User",
+    "genero": "Masculino"
+  }
+}
+
+tests {
+  test("Seed creation (201 or 409)", function() {
+      // It doesn't matter if it fails with 409 (already exists), as long as it exists for the next test.
+      expect(res.status).to.be.oneOf([201, 409]);
+  });
+}

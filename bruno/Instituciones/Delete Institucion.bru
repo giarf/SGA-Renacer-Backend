@@ -1,0 +1,21 @@
+meta {
+  name: Delete Institucion
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/instituciones/{{institucionId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Delete success message", function() {
+    expect(res.body.mensaje).to.include("eliminada exitosamente");
+  });
+}

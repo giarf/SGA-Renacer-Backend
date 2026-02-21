@@ -1,0 +1,31 @@
+meta {
+  name: Setup Duplicate Institucion Seed
+  type: http
+  seq: 5.9
+}
+
+post {
+  url: {{baseUrl}}/api/instituciones
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "rut": "99.999.999-9",
+    "telefono": "+56933333333",
+    "correo": "duplicate.ong@ong.cl",
+    "direccion": "Av. Duplicate",
+    "comuna": "Santiago",
+    "razonSocial": "ONG Duplicate Seed",
+    "nombreFantasia": "Dup",
+    "subtipoInstitucion": "ONG",
+    "rubro": "Social"
+  }
+}
+
+tests {
+  test("Seed creation (201 or 409)", function() {
+      expect(res.status).to.be.oneOf([201, 409]);
+  });
+}

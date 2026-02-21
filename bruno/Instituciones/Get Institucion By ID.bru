@@ -1,0 +1,22 @@
+meta {
+  name: Get Institucion By ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/instituciones/{{institucionId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response contains correct data", function() {
+    expect(res.body.id).to.equal(Number(bru.getVar("institucionId")));
+    expect(res.body.rut).to.equal(bru.getVar("institucionRut"));
+  });
+}

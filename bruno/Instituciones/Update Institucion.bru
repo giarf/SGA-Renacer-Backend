@@ -1,0 +1,36 @@
+meta {
+  name: Update Institucion
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/instituciones/{{institucionId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": {{institucionId}},
+    "rut": "{{institucionRut}}",
+    "telefono": "+56933333333",
+    "correo": "contacto.renovado.{{uniqueId}}@ong.cl",
+    "direccion": "Av. Principal Updated",
+    "comuna": "Santiago",
+    "razonSocial": "ONG Renovada {{uniqueId}}",
+    "nombreFantasia": "Solidaria",
+    "subtipoInstitucion": "ONG",
+    "rubro": "Asistencia Social"
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  
+  test("Update success message", function() {
+    expect(res.body.mensaje).to.include("actualizada exitosamente");
+  });
+}

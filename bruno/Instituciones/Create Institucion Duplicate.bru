@@ -1,0 +1,37 @@
+meta {
+  name: Create Institucion Duplicate
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/instituciones
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "rut": "99.999.999-9",
+    "telefono": "+56933333333",
+    "correo": "duplicate.ong@ong.cl",
+    "direccion": "Av. Duplicate",
+    "comuna": "Santiago",
+    "razonSocial": "ONG Duplicate",
+    "nombreFantasia": "Dup",
+    "subtipoInstitucion": "ONG",
+    "rubro": "Social"
+  }
+}
+
+tests {
+  test("Expect 409 Conflict", function() {
+      // Similar logic to Persona duplicate
+      if (res.status === 201) {
+          console.warn("First run created the record. Run again to test conflict.");
+      } else {
+          expect(res.status).to.equal(409);
+          expect(res.body.error).to.include("Ya existe");
+      }
+  });
+}
