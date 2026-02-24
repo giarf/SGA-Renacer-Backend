@@ -1,0 +1,56 @@
+meta {
+  name: Create Consumo Interno
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/egresos/consumo-interno
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "egreso": {
+      "id": 0,
+      "fecha": "2026-02-15",
+      "tipoEgreso": "ConsumoInterno",
+      "montoValorizadoTotal": 15000
+    },
+    "consumo": {
+      "egresoId": 0,
+      "programaEvento": "Taller de Arte - Test",
+      "responsablePersonaId": {{personaId}}
+    },
+    "detalles": [
+      {
+        "id": 0,
+        "egresoId": 0,
+        "itemCatalogoId": {{catalogoItemId}},
+        "cantidad": 10,
+        "precioUnitarioPpp": 1500
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.id) {
+    bru.setVar("egresoConsumoId", res.body.id);
+  }
+}
+
+tests {
+  test("Status code is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+
+  test("Response has ID", function() {
+    expect(res.body.id).to.be.a("number");
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("Consumo interno");
+  });
+}

@@ -1,0 +1,26 @@
+meta {
+  name: Search Entidades Institucion
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/entidades?tipo=Institucion&q=ONG
+  body: none
+  auth: none
+}
+
+params:query {
+  tipo: Institucion
+  q: ONG
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response is array", function() {
+    expect(res.body).to.be.an("array");
+  });
+}

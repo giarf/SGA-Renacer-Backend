@@ -66,6 +66,7 @@ class IngresosRoutes(
       respond(Json.obj("id_ingreso" -> id, "status" -> "registrado"), 201)
     } catch {
       case e: Exception =>
+        e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)
     }
   }

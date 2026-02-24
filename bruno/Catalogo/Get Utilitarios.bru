@@ -1,0 +1,24 @@
+meta {
+  name: Get Utilitarios
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/catalogo/utilitarios
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has categorias and unidades", function() {
+    expect(res.body).to.have.property("categorias");
+    expect(res.body).to.have.property("unidades");
+    expect(res.body.categorias).to.be.an("array");
+    expect(res.body.unidades).to.be.an("array");
+  });
+}

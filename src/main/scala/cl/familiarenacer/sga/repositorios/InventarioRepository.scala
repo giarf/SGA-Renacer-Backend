@@ -9,80 +9,7 @@ import io.getquill._
 class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
 
-  /**
-   * Registra una donación de bienes (No Pecuniaria).
-   * Maneja la lógica de crear ítems si no existen, actualizar stock y PPP, y registrar el ingreso.
-   *
-   * @param ingreso Datos de la cabecera del ingreso.
-   * @param donacion Datos específicos de la donación (certificado, etc.).
-   * @param detalles Lista de ítems donados.
-   * @return ID del ingreso generado.
-   */
-  def registrarDonacionBienes(ingreso: IngresoRecurso, donacion: IngresoDonacion, detalles: List[DetalleIngresoRecurso], itemsNuevosData: Map[String, (String, String)]): Long = {
-    // 1. Validaciones Previas (Sanity Checks)
-    if (detalles.isEmpty) throw new IllegalArgumentException("La donación debe tener al menos un ítem.")
-    detalles.foreach { d =>
-      if (d.cantidad.getOrElse(BigDecimal(0)) <= 0) throw new IllegalArgumentException(s"La cantidad del ítem debe ser mayor a 0.")
-    }
-
-    val montoCalculado = detalles.map(d => d.cantidad.getOrElse(BigDecimal(0)) * d.precioUnitarioIngreso.getOrElse(BigDecimal(0))).sum
-    // Tolerancia pequeña por errores de punto flotante si fuera necesario, pero BigDecimal debería ser exacto.
-    if (ingreso.montoTotal.exists(m => (m - montoCalculado).abs > BigDecimal(0.01))) {
-      throw new IllegalArgumentException(s"El monto total del ingreso no coincide con la suma de los detalles. Declarado: ${ingreso.montoTotal}, Calculado: $montoCalculado")
-    }
-
-    ctx.transaction {
-      // 2. Procesar cada ítem
-      val detallesConId = detalles.map { detalle =>
-        // A. Obtener o Crear Ítem (Upsert Logico)
-        val itemId = detalle.itemCatalogoId match {
-          case Some(id) if id > 0 => id
-          case _ =>
-            // Buscar por nombre si no viene ID
-            // Necesitamos el nombre para buscar. En este diseño, asumimos que si ID=0, el frontend manda el nombre en una estructura auxiliar o
-            // el detalle tiene alguna forma de traerlo.
-            // Para simplificar y dado el requerimiento, asumiremos que si es nuevo, el nombre viene en un mapa auxiliar o se busca una estrategia.
-            // *Asumiremos por ahora que si es nuevo, el nombre viene en un campo auxiliar del request que pasaremos a este método.*
-            // Si no, fallará.
-            // REVISAR: El DTO `RegistrarDonacionBienesRequest` debería tener esta info.
-            // Por ahora, asumamos que buscamos por nombre EXACTO (case insensitive)
-            throw new IllegalArgumentException("Para ítems nuevos (ID 0), se requiere lógica adicional de mapeo de nombres. (Implementación pendiente de refactor en Controller)")
-            // NOTA: Para arreglar esto ahora mismo, vamos a asumir que el controller nos pasa un Map[IndiceDetalle, DatosItemNuevo] o similar.
-            // Pero dado el DTO sugerido `RegistrarDonacionBienesRequest` que tiene `DetalleIngresoRecurso`, este DTO solo tiene `itemCatalogoId`.
-            // Vamos a MODIFICAR la firma para recibir `itemsNuevosData: Map[String, (String, String)]` -> Map(NombreTemporal -> (Categoria, Unidad))
-            // O mejor: El `DetalleIngresoRecurso` no tiene campo nombre.
-            // SOLUCION: El Controller deberá resolver los IDs de los nombres ANTES o pasarnos una estructura enriquecida.
-            // ESTRATEGIA: Asumiremos que el "itemCatalogoId" = 0 indica nuevo y que el Controller maneja la creación? NO, la transaction debe ser ACÁ.
-            // CAMBIO: Vamos a permitir que la lógica de búsqueda sea parte del flujo. Necesitamos el NOMBRE del ítem en el detalle.
-            // Como `DetalleIngresoRecurso` es tabla DB y no tiene nombre, deberíamos usar un DTO de entrada distinto O pasar un Map auxiliar.
-            // Usaremos el argumento `itemsNuevosData` agregado a la funcion.
-             0 // Placeholder para que compile mientras ajustamos abajo.
-        }
-        
-        // Logica Real de Upsert dentro del loop
-        // Recuperamos el nombre del item asociado a este detalle si es nuevo.
-        // Asumimos que `itemsNuevosData` tiene como clave un identificador temporal o índice, pero es complejo coordinar listas.
-        // SIMPLIFICACION: El frontend mandará itemCatalogoId = 0. PERO necesitamos el nombre.
-        // Voy a asumnir que el repositorio recibe una lista de objetos que tienen (Detalle, NombreItemOpcional, CategoriaOp, UnidadOp).
-        
-        // REFORMATING LOGIC FOR ROBUSTNESS: 
-        // We will change the signature to take a list of a tuple or Case Class specific for the operation.
-        // But to stick to the interface, let's assume `itemsNuevosData` maps index of detalle -> (Nombre, Categoria, Unidad).
-        
-        detalle
-      }
-      
-      // ESCENARIO REAL POCO PRACTICO CON ARGUMENTOS SEPARADOS.
-      // Voy a implementar `registrarDonacionBienes` recibiendo un DTO interno completo par evitar desincronización.
-      
-      // * RETORNO 0 para no romper mientras redefino la estrategia en el siguiente paso con el DTO correcto en el Modelo *
-      0L
-    }
-  }
-
-  // REIMPLEMENTACION CORRECTA CON CASE CLASS INTERNA PARA FACILITAR EL MANEJO
-  // Definida ahora en modelos.Inventario.scala
-  // case class DetalleDonacionInput(...)
+  // ===== Donación de Bienes (con upsert de catálogo y recálculo de PPP) =====
 
   def registrarDonacionCompleta(ingreso: IngresoRecurso, donacion: IngresoDonacion, items: List[DetalleDonacionInput]): Long = {
      // 1. Validaciones
@@ -95,7 +22,7 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
 
     ctx.transaction {
       val ingresoId = ctx.run(query[IngresoRecurso].insertValue(lift(ingreso)).returningGenerated(_.id))
-      ctx.run(query[IngresoDonacion].insertValue(lift(donacion.copy(ingresoId = ingresoId))))
+      ctx.run(query[IngresoDonacion].insertValue(lift(donacion.copy(ingresoId = Some(ingresoId)))))
 
       items.foreach { itemInput =>
         val detalle = itemInput.detalle
@@ -160,8 +87,8 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         val nuevoValorTotal = valorTotalActual + valorIngreso
         
         val nuevoPPP = if (nuevoStock > 0) {
-           nuevoValorTotal / nuevoStock 
-           .setScale(4, BigDecimal.RoundingMode.HALF_UP)
+           (nuevoValorTotal / nuevoStock)
+             .setScale(4, BigDecimal.RoundingMode.HALF_UP)
         } else BigDecimal(0)
 
         // 4. Actualizar Ítem

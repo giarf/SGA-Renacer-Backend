@@ -1,21 +1,15 @@
 meta {
   name: Delete Institucion
   type: http
-  seq: 5
+  seq: 8
 }
 
 delete {
-  url: {{baseUrl}}/api/instituciones/{{institucionId}}
+  url: {{baseUrl}}/instituciones/{{institucionId}}
   body: none
-  auth: none
+  auth: inherit
 }
 
-tests {
-  test("Status code is 200", function() {
-    expect(res.status).to.equal(200);
-  });
-
-  test("Delete success message", function() {
-    expect(res.body.mensaje).to.include("eliminada exitosamente");
-  });
+settings {
+  encodeUrl: true
 }

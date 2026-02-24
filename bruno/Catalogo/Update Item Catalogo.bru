@@ -1,0 +1,36 @@
+meta {
+  name: Update Item Catalogo
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/catalogo/{{catalogoItemId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": {{catalogoItemId}},
+    "nombre": "Arroz Integral Actualizado {{uniqueId}}",
+    "categoria": "Alimentos",
+    "unidadMedidaEstandar": "Kilos",
+    "precioReferencia": 1500
+  }
+}
+
+script:pre-request {
+  const uniqueId = Math.floor(Math.random() * 100000);
+  bru.setVar("uniqueId", uniqueId);
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("actualizado");
+  });
+}

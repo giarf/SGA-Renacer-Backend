@@ -1,0 +1,64 @@
+meta {
+  name: Create Solicitud
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/solicitudes
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "solicitud": {
+      "id": 0,
+      "solicitanteId": {{personaId}},
+      "programa": "Taller de Carpintería Test",
+      "fechaSolicitud": "2026-02-20T10:00:00",
+      "estado": "Pendiente",
+      "autorizadorId": null
+    },
+    "items": [
+      {
+        "id": 0,
+        "solicitudId": null,
+        "itemCatalogoId": {{catalogoItemId}},
+        "descripcionManual": null,
+        "cantidadRequerida": 10,
+        "cantidadEntregada": null
+      },
+      {
+        "id": 0,
+        "solicitudId": null,
+        "itemCatalogoId": null,
+        "descripcionManual": "Tornillos 2 pulgadas (manual)",
+        "cantidadRequerida": 100,
+        "cantidadEntregada": null
+      }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    if (res.body.id) {
+      bru.setVar("solicitudId", res.body.id);
+    }
+  }
+}
+
+tests {
+  test("Status code is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+
+  test("Items count is correct", function() {
+    expect(res.body.items_count).to.equal(2);
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("Solicitud");
+  });
+}

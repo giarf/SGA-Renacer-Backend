@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso}
+import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera}
 import io.getquill._
 
 /**
@@ -34,16 +34,27 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
 
       // 2. Preparamos y registramos el detalle de donación con el ID generado.
-      val donacionConId = donacion.copy(ingresoId = ingresoId)
+      val donacionConId = donacion.copy(ingresoId = Some(ingresoId))
       ctx.run(
         query[IngresoDonacion].insertValue(lift(donacionConId))
       )
 
       // 3. Preparamos y registramos el detalle pecuniario con el ID generado.
-      val pecuniarioConId = pecuniario.copy(ingresoId = ingresoId)
+      val pecuniarioConId = pecuniario.copy(ingresoId = Some(ingresoId))
       ctx.run(
         query[IngresoPecuniario].insertValue(lift(pecuniarioConId))
       )
+
+      // 4. Actualizar saldo de la cuenta financiera
+      val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
+      val cero = BigDecimal(0)
+      pecuniario.cuentaDestinoId.foreach { cuentaId =>
+        ctx.run(
+          query[CuentaFinanciera]
+            .filter(_.id == lift(cuentaId))
+            .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) + lift(monto)))
+        )
+      }
 
       // Retornamos el ID principal de la transacción.
       ingresoId.toLong
@@ -69,16 +80,33 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
 
       // 2. Insertar el detalle de compra
-      val compraConId = compra.copy(ingresoId = ingresoId)
+      val compraConId = compra.copy(ingresoId = Some(ingresoId))
       ctx.run(
         query[IngresoCompra].insertValue(lift(compraConId))
       )
 
       // 3. Insertar los detalles de los ítems
       if (detalles.nonEmpty) {
-        val detallesConId = detalles.map(_.copy(ingresoId = Some(ingresoId)))
+        detalles.foreach { detalle =>
+          ctx.run(
+            query[DetalleIngresoRecurso].insert(
+              _.ingresoId             -> lift(Option(ingresoId)),
+              _.itemCatalogoId        -> lift(detalle.itemCatalogoId),
+              _.cantidad              -> lift(detalle.cantidad),
+              _.precioUnitarioIngreso -> lift(detalle.precioUnitarioIngreso)
+            )
+          )
+        }
+      }
+
+      // 4. Descontar saldo de la cuenta origen
+      val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
+      val cero = BigDecimal(0)
+      compra.cuentaOrigenId.foreach { cuentaId =>
         ctx.run(
-          liftQuery(detallesConId).foreach(d => query[DetalleIngresoRecurso].insertValue(d))
+          query[CuentaFinanciera]
+            .filter(_.id == lift(cuentaId))
+            .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) - lift(monto)))
         )
       }
 
@@ -100,10 +128,21 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           .returningGenerated(_.id)
       )
 
-      val pecuniarioConId = pecuniario.copy(ingresoId = ingresoId)
+      val pecuniarioConId = pecuniario.copy(ingresoId = Some(ingresoId))
       ctx.run(
         query[IngresoPecuniario].insertValue(lift(pecuniarioConId))
       )
+
+      // Actualizar saldo de la cuenta
+      val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
+      val cero = BigDecimal(0)
+      pecuniario.cuentaDestinoId.foreach { cuentaId =>
+        ctx.run(
+          query[CuentaFinanciera]
+            .filter(_.id == lift(cuentaId))
+            .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) + lift(monto)))
+        )
+      }
 
       ingresoId.toLong
     }
@@ -122,17 +161,28 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           .returningGenerated(_.id)
       )
 
-      val subvencionConId = subvencion.copy(ingresoId = ingresoId)
+      val subvencionConId = subvencion.copy(ingresoId = Some(ingresoId))
       ctx.run(
         query[IngresoSubvencion].insertValue(lift(subvencionConId))
       )
 
       // Opcionalmente registrar el pecuniario si viene
       pecuniario.foreach { pec =>
-        val pecConId = pec.copy(ingresoId = ingresoId)
+        val pecConId = pec.copy(ingresoId = Some(ingresoId))
         ctx.run(
           query[IngresoPecuniario].insertValue(lift(pecConId))
         )
+
+        // Actualizar saldo de la cuenta
+        val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
+        val cero = BigDecimal(0)
+        pec.cuentaDestinoId.foreach { cuentaId =>
+          ctx.run(
+            query[CuentaFinanciera]
+              .filter(_.id == lift(cuentaId))
+              .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) + lift(monto)))
+          )
+        }
       }
 
       ingresoId.toLong

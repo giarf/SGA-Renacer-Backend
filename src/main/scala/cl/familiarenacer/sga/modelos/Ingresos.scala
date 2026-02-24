@@ -18,14 +18,14 @@ import java.time.LocalDate
  */
 case class IngresoRecurso(
   id: Int,
-  origenEntidadId: Option[Int],
-  responsableInternoId: Option[Int],
-  solicitudId: Option[Int],
-  fecha: Option[LocalDate],
-  tipoTransaccion: Option[String],
-  montoTotal: Option[BigDecimal],
-  estado: Option[String],
-  creadoPorId: Option[Int]
+  origenEntidadId: Option[Int] = None,
+  responsableInternoId: Option[Int] = None,
+  solicitudId: Option[Int] = None,
+  fecha: Option[LocalDate] = None,
+  tipoTransaccion: Option[String] = None,
+  montoTotal: Option[BigDecimal] = None,
+  estado: Option[String] = None,
+  creadoPorId: Option[Int] = None
 )
 
 /**
@@ -36,9 +36,9 @@ case class IngresoRecurso(
  * @param metodoTransferencia Método de pago (transferencia, efectivo, cheque).
  */
 case class IngresoPecuniario(
-  ingresoId: Int,
-  cuentaDestinoId: Option[Int],
-  metodoTransferencia: Option[String]
+  ingresoId: Option[Int] = None,
+  cuentaDestinoId: Option[Int] = None,
+  metodoTransferencia: Option[String] = None
 )
 
 /**
@@ -51,11 +51,11 @@ case class IngresoPecuniario(
  * @param montoIva Monto del IVA.
  */
 case class IngresoCompra(
-  ingresoId: Int,
-  cuentaOrigenId: Option[Int],
-  numeroFacturaBoleta: Option[String],
-  montoNeto: Option[BigDecimal],
-  montoIva: Option[BigDecimal]
+  ingresoId: Option[Int] = None,
+  cuentaOrigenId: Option[Int] = None,
+  numeroFacturaBoleta: Option[String] = None,
+  montoNeto: Option[BigDecimal] = None,
+  montoIva: Option[BigDecimal] = None
 )
 
 /**
@@ -66,9 +66,9 @@ case class IngresoCompra(
  * @param propositoEspecifico Propósito o restricción de uso de la donación.
  */
 case class IngresoDonacion(
-  ingresoId: Int,
-  numeroCertificado: Option[String],
-  propositoEspecifico: Option[String]
+  ingresoId: Option[Int] = None,
+  numeroCertificado: Option[String] = None,
+  propositoEspecifico: Option[String] = None
 )
 
 /**
@@ -79,9 +79,9 @@ case class IngresoDonacion(
  * @param fechaRendicionLimite Fecha límite para rendir cuentas.
  */
 case class IngresoSubvencion(
-  ingresoId: Int,
-  nombreProyecto: Option[String],
-  fechaRendicionLimite: Option[LocalDate]
+  ingresoId: Option[Int] = None,
+  nombreProyecto: Option[String] = None,
+  fechaRendicionLimite: Option[LocalDate] = None
 )
 
 /**
@@ -95,8 +95,8 @@ case class IngresoSubvencion(
  */
 case class DetalleIngresoRecurso(
   id: Int,
-  ingresoId: Option[Int],
-  itemCatalogoId: Option[Int],
-  cantidad: Option[BigDecimal],
-  precioUnitarioIngreso: Option[BigDecimal]
+  ingresoId: Option[Int] = None,
+  itemCatalogoId: Option[Int] = None,
+  cantidad: Option[BigDecimal] = None,
+  precioUnitarioIngreso: Option[BigDecimal] = None
 )

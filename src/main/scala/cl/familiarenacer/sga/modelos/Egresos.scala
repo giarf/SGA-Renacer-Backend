@@ -13,10 +13,10 @@ import java.time.LocalDate
  */
 case class EgresoRecurso(
   id: Int,
-  fecha: Option[LocalDate],
-  tipoEgreso: Option[String],
-  montoValorizadoTotal: Option[BigDecimal],
-  creadoPorId: Option[Int]
+  fecha: Option[LocalDate] = None,
+  tipoEgreso: Option[String] = None,
+  montoValorizadoTotal: Option[BigDecimal] = None,
+  creadoPorId: Option[Int] = None
 )
 
 /**
@@ -27,9 +27,9 @@ case class EgresoRecurso(
  * @param motivoEntrega Razón o justificación de la entrega.
  */
 case class EgresoAyudaSocial(
-  egresoId: Int,
-  beneficiarioPersonaId: Option[Int],
-  motivoEntrega: Option[String]
+  egresoId: Option[Int] = None,
+  beneficiarioPersonaId: Option[Int] = None,
+  motivoEntrega: Option[String] = None
 )
 
 /**
@@ -40,9 +40,9 @@ case class EgresoAyudaSocial(
  * @param responsablePersonaId ID de la persona responsable del retiro/uso.
  */
 case class EgresoConsumoInterno(
-  egresoId: Int,
-  programaEvento: Option[String],
-  responsablePersonaId: Option[Int]
+  egresoId: Option[Int] = None,
+  programaEvento: Option[String] = None,
+  responsablePersonaId: Option[Int] = None
 )
 
 /**
@@ -56,8 +56,8 @@ case class EgresoConsumoInterno(
  */
 case class DetalleEgresoRecurso(
   id: Int,
-  egresoId: Option[Int],
-  itemCatalogoId: Option[Int],
-  cantidad: Option[BigDecimal],
-  precioUnitarioPpp: Option[BigDecimal]
+  egresoId: Option[Int] = None,
+  itemCatalogoId: Option[Int] = None,
+  cantidad: Option[BigDecimal] = None,
+  precioUnitarioPpp: Option[BigDecimal] = None
 )

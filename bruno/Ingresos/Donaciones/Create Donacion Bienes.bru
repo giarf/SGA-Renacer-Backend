@@ -1,0 +1,65 @@
+meta {
+  name: Create Donacion Bienes
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/ingresos/donacion-bienes
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "ingreso": {
+      "id": 0,
+      "origenEntidadId": {{personaId}},
+      "responsableInternoId": {{personaId}},
+      "montoTotal": 30000,
+      "tipoTransaccion": "Donacion",
+      "estado": "Cerrado"
+    },
+    "donacion": {
+      "ingresoId": 0,
+      "numeroCertificado": "DON-BIENES-{{uniqueId}}",
+      "propositoEspecifico": "Donación de ropa de invierno"
+    },
+    "items": [
+      {
+        "id": 0,
+        "itemCatalogoId": 0,
+        "nombre": "Chaqueta Polar Test {{uniqueId}}",
+        "categoria": "Vestuario",
+        "unidad": "Unidades",
+        "cantidad": 10,
+        "precio": 3000
+      }
+    ]
+  }
+}
+
+script:pre-request {
+  const uniqueId = Math.floor(Math.random() * 100000);
+  bru.setVar("uniqueId", uniqueId);
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.id_ingreso) {
+    bru.setVar("ingresoBienesId", res.body.id_ingreso);
+  }
+}
+
+tests {
+  test("Status code is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+
+  test("Response has ingreso ID", function() {
+    expect(res.body.id_ingreso).to.be.a("number");
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("bienes");
+  });
+}

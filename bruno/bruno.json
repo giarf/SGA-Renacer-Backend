@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "name": "Sample API Collection",
+  "name": "Test Api",
   "type": "collection",
   "ignore": [
     "node_modules",

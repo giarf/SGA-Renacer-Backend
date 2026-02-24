@@ -1,0 +1,27 @@
+meta {
+  name: Existe RUT
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/entidades/existe-rut?rut=12.345.678-9
+  body: none
+  auth: none
+}
+
+params:query {
+  rut: 12.345.678-9
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has rut and existe fields", function() {
+    expect(res.body).to.have.property("rut");
+    expect(res.body).to.have.property("existe");
+    expect(res.body.existe).to.be.a("boolean");
+  });
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Buscar Items
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/catalogo/buscar?q=Arroz
+  body: none
+  auth: none
+}
+
+params:query {
+  q: Arroz
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response is array", function() {
+    expect(res.body).to.be.an("array");
+  });
+}

@@ -74,7 +74,7 @@ class CuentaFinancieraRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val ingresos = ctx.run(
       for {
         pec <- query[IngresoPecuniario].filter(_.cuentaDestinoId == lift(Option(cuentaId)))
-        ing <- query[IngresoRecurso].filter(_.id == pec.ingresoId)
+        ing <- query[IngresoRecurso].filter(_.id == pec.ingresoId.getOrElse(0))
       } yield ing
     )
 
@@ -82,7 +82,7 @@ class CuentaFinancieraRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val egresos = ctx.run(
       for {
         compra <- query[IngresoCompra].filter(_.cuentaOrigenId == lift(Option(cuentaId)))
-        ing <- query[IngresoRecurso].filter(_.id == compra.ingresoId)
+        ing <- query[IngresoRecurso].filter(_.id == compra.ingresoId.getOrElse(0))
       } yield ing
     )
 

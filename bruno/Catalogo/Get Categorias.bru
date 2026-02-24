@@ -1,0 +1,21 @@
+meta {
+  name: Get Categorias
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/catalogo/utilitarios/categorias
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response is array of strings", function() {
+    expect(res.body).to.be.an("array");
+  });
+}

@@ -1,0 +1,20 @@
+{
+  "ingreso": {
+    "id": 0,
+    "origenEntidadId": 45,
+    "responsableInternoId": 45,
+    "montoTotal": 50000,
+    "tipoTransaccion": "Donacion",
+    "estado": "Cerrado"
+  },
+  "donacion": {
+    "ingresoId": 0,
+    "numeroCertificado": "DON-TEST-1234",
+    "propositoEspecifico": "Programa Invierno"
+  },
+  "pecuniario": {
+    "ingresoId": 0,
+    "cuentaDestinoId": 10,
+    "metodoTransferencia": "Transferencia"
+  }
+}

@@ -1,0 +1,17 @@
+meta {
+  name: Delete Cuenta
+  type: http
+  seq: 99
+}
+
+delete {
+  url: {{baseUrl}}/api/cuentas/{{cuentaId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200 or 409", function() {
+    expect(res.status).to.be.oneOf([200, 409]);
+  });
+}

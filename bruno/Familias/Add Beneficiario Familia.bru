@@ -1,0 +1,23 @@
+meta {
+  name: Add Beneficiario Familia
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/familias/{{familiaId}}/beneficiarios
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "personaId": {{personaId}}
+  }
+}
+
+tests {
+  test("Status code is 200 or 201", function() {
+    expect(res.status).to.be.oneOf([200, 201]);
+  });
+}

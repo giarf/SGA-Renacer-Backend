@@ -1,0 +1,27 @@
+meta {
+  name: Update Cuenta
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/cuentas/{{cuentaId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "nombre": "Banco Estado - Cuenta Corriente"
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("actualizada");
+  });
+}

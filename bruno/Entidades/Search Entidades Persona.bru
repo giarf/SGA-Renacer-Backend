@@ -1,0 +1,26 @@
+meta {
+  name: Search Entidades Persona
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/entidades?tipo=Persona&q=Juan
+  body: none
+  auth: none
+}
+
+params:query {
+  tipo: Persona
+  q: Juan
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response is array", function() {
+    expect(res.body).to.be.an("array");
+  });
+}

@@ -29,16 +29,24 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
 
       // 2. Insertar el detalle de ayuda social
-      val ayudaConId = ayuda.copy(egresoId = egresoId)
+      val ayudaConId = ayuda.copy(egresoId = Some(egresoId))
       ctx.run(
         query[EgresoAyudaSocial].insertValue(lift(ayudaConId))
       )
 
       // 3. Insertar los detalles de los recursos egresados
-      val detallesConId = detalles.map(_.copy(egresoId = Some(egresoId)))
-      ctx.run(
-        liftQuery(detallesConId).foreach(d => query[DetalleEgresoRecurso].insertValue(d))
-      )
+      if (detalles.nonEmpty) {
+        detalles.foreach { detalle =>
+          ctx.run(
+            query[DetalleEgresoRecurso].insert(
+              _.egresoId          -> lift(Option(egresoId)),
+              _.itemCatalogoId    -> lift(detalle.itemCatalogoId),
+              _.cantidad          -> lift(detalle.cantidad),
+              _.precioUnitarioPpp -> lift(detalle.precioUnitarioPpp)
+            )
+          )
+        }
+      }
 
       egresoId.toLong
     }
@@ -62,16 +70,24 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
 
       // 2. Insertar el detalle de consumo interno
-      val consumoConId = consumo.copy(egresoId = egresoId)
+      val consumoConId = consumo.copy(egresoId = Some(egresoId))
       ctx.run(
         query[EgresoConsumoInterno].insertValue(lift(consumoConId))
       )
 
       // 3. Insertar los detalles de los recursos egresados
-      val detallesConId = detalles.map(_.copy(egresoId = Some(egresoId)))
-      ctx.run(
-        liftQuery(detallesConId).foreach(d => query[DetalleEgresoRecurso].insertValue(d))
-      )
+      if (detalles.nonEmpty) {
+        detalles.foreach { detalle =>
+          ctx.run(
+            query[DetalleEgresoRecurso].insert(
+              _.egresoId          -> lift(Option(egresoId)),
+              _.itemCatalogoId    -> lift(detalle.itemCatalogoId),
+              _.cantidad          -> lift(detalle.cantidad),
+              _.precioUnitarioPpp -> lift(detalle.precioUnitarioPpp)
+            )
+          )
+        }
+      }
 
       egresoId.toLong
     }

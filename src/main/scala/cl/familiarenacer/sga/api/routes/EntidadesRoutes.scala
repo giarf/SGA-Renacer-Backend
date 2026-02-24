@@ -43,6 +43,9 @@ class EntidadesRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Contex
     }
   }
 
+  @cask.options("/api/entidades/actualizar")
+  def actualizarPersonaOptions() = corsOptions()
+
   @cask.post("/api/entidades/actualizar")
   def actualizarPersonaEndpoint(request: cask.Request) = {
     try {
@@ -60,10 +63,11 @@ class EntidadesRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Contex
         apellidos = body.apellidos, genero = body.genero,
         ocupacion = body.ocupacion, fechaNacimiento = body.fechaNacimiento
       )
-      entidadRepo.actualizarPersona(entidad, persona)
+      entidadRepo.actualizarPersonaNatural(body.id, persona, entidad)
       respond(Json.obj("mensaje" -> s"Persona ${body.id} actualizada correctamente"))
     } catch {
       case e: Exception =>
+        e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)
     }
   }

@@ -1,0 +1,45 @@
+meta {
+  name: Create Cuenta
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/cuentas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": 0,
+    "nombre": "Caja Chica Test {{uniqueId}}",
+    "saldoActual": 0
+  }
+}
+
+script:pre-request {
+  const uniqueId = Math.floor(Math.random() * 100000);
+  bru.setVar("uniqueId", uniqueId);
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.id) {
+    bru.setVar("cuentaId", res.body.id);
+  }
+}
+
+tests {
+  test("Status code is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+
+  test("Response has ID", function() {
+    expect(res.body.id).to.be.a("number");
+    expect(res.body.id).to.be.greaterThan(0);
+  });
+
+  test("Success message is present", function() {
+    expect(res.body.mensaje).to.include("Cuenta creada");
+  });
+}

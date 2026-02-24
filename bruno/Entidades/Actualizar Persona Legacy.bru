@@ -1,0 +1,38 @@
+meta {
+  name: Actualizar Persona Legacy
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/entidades/actualizar
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "id": {{personaId}},
+    "rut": "12.345.678-9",
+    "tipoEntidad": "Persona",
+    "telefono": "+56912345678",
+    "correo": "actualizado@email.com",
+    "direccion": "Nueva Dirección 456",
+    "comuna": "Viña del Mar",
+    "nombres": "Juan Carlos",
+    "apellidos": "Pérez López",
+    "genero": "Masculino",
+    "ocupacion": "Albañil",
+    "fechaNacimiento": "1990-05-15"
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has success message", function() {
+    expect(res.body).to.have.property("mensaje");
+  });
+}

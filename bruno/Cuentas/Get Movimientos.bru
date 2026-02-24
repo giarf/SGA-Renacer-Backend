@@ -1,0 +1,24 @@
+meta {
+  name: Get Movimientos
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/cuentas/{{cuentaId}}/movimientos
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has ingresos and egresos", function() {
+    expect(res.body).to.have.property("ingresos");
+    expect(res.body).to.have.property("egresos");
+    expect(res.body.ingresos).to.be.an("array");
+    expect(res.body.egresos).to.be.an("array");
+  });
+}
