@@ -4,6 +4,7 @@ import cl.familiarenacer.sga.api.ApiSupport
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.EgresoRepository
 import play.api.libs.json._
+import java.time.LocalDate
 
 class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
 
@@ -67,7 +68,8 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   def registrarAyudaSocial(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[RegistrarAyudaSocialRequest]
-      val id = egresoRepo.registrarAyudaSocial(body.egreso, body.ayuda, body.detalles)
+      val egresoNormalizado = normalizarEgreso(body.egreso)
+      val id = egresoRepo.registrarAyudaSocial(egresoNormalizado, body.ayuda, body.detalles)
       respond(Json.obj("id" -> id, "mensaje" -> "Ayuda social registrada exitosamente"), 201)
     } catch {
       case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
@@ -82,7 +84,8 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   def registrarConsumoInterno(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[RegistrarConsumoInternoRequest]
-      val id = egresoRepo.registrarConsumoInterno(body.egreso, body.consumo, body.detalles)
+      val egresoNormalizado = normalizarEgreso(body.egreso)
+      val id = egresoRepo.registrarConsumoInterno(egresoNormalizado, body.consumo, body.detalles)
       respond(Json.obj("id" -> id, "mensaje" -> "Consumo interno registrado exitosamente"), 201)
     } catch {
       case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
@@ -94,4 +97,8 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   }
 
   initialize()
+
+  private def normalizarEgreso(egreso: EgresoRecurso): EgresoRecurso = {
+    if (egreso.fecha.isDefined) egreso else egreso.copy(fecha = Some(LocalDate.now()))
+  }
 }

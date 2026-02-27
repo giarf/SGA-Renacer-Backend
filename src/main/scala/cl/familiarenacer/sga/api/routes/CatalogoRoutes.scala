@@ -9,6 +9,14 @@ class CatalogoRoutes(inventarioRepo: InventarioRepository)(implicit cc: castor.C
 
   // ===== DTOs =====
 
+  case class CrearItemRequest(
+    nombre: String,
+    categoria: Option[String],
+    unidadMedidaEstandar: Option[String],
+    precioReferencia: Option[BigDecimal]
+  )
+  implicit val crearItemFormat: OFormat[CrearItemRequest] = Json.format[CrearItemRequest]
+
   case class ActualizarItemRequest(
     id: Int,
     nombre: Option[String],
@@ -44,11 +52,21 @@ class CatalogoRoutes(inventarioRepo: InventarioRepository)(implicit cc: castor.C
   @cask.post("/api/catalogo")
   def registrarItemCatalogo(request: cask.Request) = {
     try {
-      val item = Json.parse(request.text()).as[ItemCatalogo]
-      if (item.nombre.isEmpty || item.nombre.exists(_.trim.isEmpty)) {
+      val body = Json.parse(request.text()).as[CrearItemRequest]
+      if (body.nombre.trim.isEmpty) {
         respond(Json.obj("error" -> "El nombre del ítem es obligatorio"), 400)
       } else {
-        val idGenerado = inventarioRepo.registrarItem(item)
+        val nuevoItem = ItemCatalogo(
+          id = 0,
+          nombre = Some(body.nombre.trim),
+          categoria = body.categoria.map(_.trim).filter(_.nonEmpty),
+          unidadMedidaEstandar = body.unidadMedidaEstandar.map(_.trim).filter(_.nonEmpty),
+          stockActual = None,
+          valorTotalStock = None,
+          precioPromedioPonderado = None,
+          precioReferencia = body.precioReferencia
+        )
+        val idGenerado = inventarioRepo.registrarItem(nuevoItem)
         respond(Json.obj("id" -> idGenerado, "mensaje" -> "Ítem registrado exitosamente en el catálogo"), 201)
       }
     } catch {

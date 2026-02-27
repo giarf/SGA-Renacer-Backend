@@ -13,17 +13,17 @@ object TestDb extends App {
 
   val jsonString = """{
   "ingreso": {
-    "id": 0,
     "origenEntidadId": 45,
     "responsableInternoId": 45,
     "montoTotal": 50000,
     "tipoTransaccion": "Donacion",
-    "estado": "Cerrado"
+    "estado": "Cerrado",
+    "anotaciones": "Colecta municipal julio"
   },
   "donacion": {
     "ingresoId": 0,
-    "numeroCertificado": "DON-TEST-1234",
-    "propositoEspecifico": "Programa Invierno"
+    "propositoEspecifico": "Programa Invierno",
+    "gestorId": 5
   },
   "pecuniario": {
     "ingresoId": 0,

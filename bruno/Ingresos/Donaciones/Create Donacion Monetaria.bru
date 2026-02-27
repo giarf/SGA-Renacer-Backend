@@ -13,20 +13,18 @@ post {
 body:json {
   {
     "ingreso": {
-      "id": 0,
       "origenEntidadId": {{personaId}},
       "responsableInternoId": {{personaId}},
-      "montoTotal": 50000,
+      "montoTotal": 50123,
       "tipoTransaccion": "Donacion",
-      "estado": "Cerrado"
+      "estado": "Cerrado",
+      "anotaciones": "Colecta municipal julio #{{uniqueId}}"
     },
     "donacion": {
-      "ingresoId": 0,
-      "numeroCertificado": "DON-TEST-{{uniqueId}}",
-      "propositoEspecifico": "Programa Invierno"
+      "propositoEspecifico": "Programa Invierno",
+      "gestorId": {{personaId}}
     },
     "pecuniario": {
-      "ingresoId": 0,
       "cuentaDestinoId": {{cuentaId}},
       "metodoTransferencia": "Transferencia"
     }
@@ -48,11 +46,11 @@ tests {
   test("Status code is 201", function() {
     expect(res.status).to.equal(201);
   });
-
+  
   test("Response has ingreso ID", function() {
     expect(res.body.id_ingreso).to.be.a("number");
   });
-
+  
   test("Status is registrado", function() {
     expect(res.body.status).to.equal("registrado");
   });

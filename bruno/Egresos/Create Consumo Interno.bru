@@ -13,23 +13,17 @@ post {
 body:json {
   {
     "egreso": {
-      "id": 0,
-      "fecha": "2026-02-15",
       "tipoEgreso": "ConsumoInterno",
       "montoValorizadoTotal": 15000
     },
     "consumo": {
-      "egresoId": 0,
       "programaEvento": "Taller de Arte - Test",
       "responsablePersonaId": {{personaId}}
     },
     "detalles": [
       {
-        "id": 0,
-        "egresoId": 0,
         "itemCatalogoId": {{catalogoItemId}},
-        "cantidad": 10,
-        "precioUnitarioPpp": 1500
+        "cantidad": 10
       }
     ]
   }

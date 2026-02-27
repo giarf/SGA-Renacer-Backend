@@ -18,6 +18,10 @@ body:json {
     "correo": "juan.perez.{{uniqueId}}@example.com",
     "direccion": "Calle Random {{uniqueId}}",
     "comuna": "Quillota",
+    "redSocial": "juansitogg",
+    "gestorId": 2,
+    "anotaciones": "borrar despues",
+    "sector" : "alfaro",
     "nombres": "Juan",
     "apellidos": "Pérez",
     "genero": "Masculino",
@@ -45,12 +49,12 @@ tests {
   test("Status code is 201", function() {
     expect(res.status).to.equal(201);
   });
-
+  
   test("Response has ID", function() {
     expect(res.body.id).to.be.a("number");
     expect(res.body.id).to.be.greaterThan(0);
   });
-
+  
   test("Success message is present", function() {
     expect(res.body.mensaje).to.equal("Persona creada exitosamente");
   });

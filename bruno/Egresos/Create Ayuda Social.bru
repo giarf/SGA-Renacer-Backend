@@ -13,23 +13,17 @@ post {
 body:json {
   {
     "egreso": {
-      "id": 0,
-      "fecha": "2026-02-15",
       "tipoEgreso": "AyudaSocial",
       "montoValorizadoTotal": 25000
     },
     "ayuda": {
-      "egresoId": 0,
       "beneficiarioPersonaId": {{personaId}},
       "motivoEntrega": "Necesidad urgente por bajas temperaturas"
     },
     "detalles": [
       {
-        "id": 0,
-        "egresoId": 0,
         "itemCatalogoId": {{catalogoItemId}},
-        "cantidad": 2,
-        "precioUnitarioPpp": 4500
+        "cantidad": 2
       }
     ]
   }

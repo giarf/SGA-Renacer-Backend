@@ -16,8 +16,7 @@ class IngresosRoutes(
   implicit val donacionRequestFormat: OFormat[DonacionRequest] = Json.format[DonacionRequest]
 
   case class ItemDonacionRequest(
-    id: Int,
-    itemCatalogoId: Int,
+    itemCatalogoId: Option[Int] = None,
     nombre: String,
     categoria: Option[String],
     unidad: Option[String],
@@ -55,6 +54,21 @@ class IngresosRoutes(
 
   // ===== ENDPOINTS =====
 
+  @cask.options("/api/ingresos")
+  def ingresosOptions() = corsOptions()
+
+  @cask.get("/api/ingresos")
+  def listarIngresos() = {
+    try {
+      val ingresos = donacionRepo.listarIngresosConTipo()
+      respond(Json.toJson(ingresos))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
   @cask.options("/api/ingresos/donacion")
   def donacionOptions() = corsOptions()
 
@@ -62,7 +76,8 @@ class IngresosRoutes(
   def registrarDonacion(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[DonacionRequest]
-      val id = donacionRepo.registrarDonacionDinero(body.ingreso, body.donacion, body.pecuniario)
+      val ingresoNormalizado = normalizarIngreso(body.ingreso)
+      val id = donacionRepo.registrarDonacionDinero(ingresoNormalizado, body.donacion, body.pecuniario)
       respond(Json.obj("id_ingreso" -> id, "status" -> "registrado"), 201)
     } catch {
       case e: Exception =>
@@ -78,11 +93,13 @@ class IngresosRoutes(
   def registrarDonacionBienes(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[RegistrarDonacionBienesRequest]
+      val ingresoNormalizado = normalizarIngreso(body.ingreso)
       val detallesInput = body.items.map { item =>
         DetalleDonacionInput(
           detalle = DetalleIngresoRecurso(
-            id = 0, ingresoId = None,
-            itemCatalogoId = if (item.itemCatalogoId > 0) Some(item.itemCatalogoId) else None,
+            id = 0,
+            ingresoId = None,
+            itemCatalogoId = item.itemCatalogoId.filter(_ > 0),
             cantidad = Some(item.cantidad),
             precioUnitarioIngreso = Some(item.precio)
           ),
@@ -91,7 +108,7 @@ class IngresosRoutes(
           unidadMedida = item.unidad
         )
       }
-      val id = inventarioRepo.registrarDonacionCompleta(body.ingreso, body.donacion, detallesInput)
+      val id = inventarioRepo.registrarDonacionCompleta(ingresoNormalizado, body.donacion, detallesInput)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Donación de bienes registrada exitosamente"), 201)
     } catch {
       case e: IllegalArgumentException =>
@@ -109,7 +126,8 @@ class IngresosRoutes(
   def registrarCompra(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[RegistrarCompraRequest]
-      val id = donacionRepo.registrarCompra(body.ingreso, body.compra, body.detalles)
+      val ingresoNormalizado = normalizarIngreso(body.ingreso)
+      val id = donacionRepo.registrarCompra(ingresoNormalizado, body.compra, body.detalles)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Compra registrada exitosamente"), 201)
     } catch {
       case e: IllegalArgumentException =>
@@ -127,7 +145,8 @@ class IngresosRoutes(
   def registrarSubvencion(request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[RegistrarSubvencionRequest]
-      val id = donacionRepo.registrarSubvencion(body.ingreso, body.subvencion, body.pecuniario)
+      val ingresoNormalizado = normalizarIngreso(body.ingreso)
+      val id = donacionRepo.registrarSubvencion(ingresoNormalizado, body.subvencion, body.pecuniario)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Subvención registrada exitosamente"), 201)
     } catch {
       case e: IllegalArgumentException =>
@@ -139,4 +158,8 @@ class IngresosRoutes(
   }
 
   initialize()
+
+  private def normalizarIngreso(ingreso: IngresoRecurso): IngresoRecurso = {
+    if (ingreso.fecha.isDefined) ingreso else ingreso.copy(fecha = Some(LocalDate.now()))
+  }
 }

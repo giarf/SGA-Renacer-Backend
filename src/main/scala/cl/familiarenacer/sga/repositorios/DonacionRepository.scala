@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera}
+import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial}
 import io.getquill._
 
 /**
@@ -16,11 +16,11 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * Registra una Donación de Dinero de manera atómica.
    * Esta operación impacta tres tablas:
    * 1. ingreso_recurso (Cabecera general del ingreso).
-   * 2. ingreso_donacion (Datos del certificado y propósito).
+   * 2. ingreso_donacion (Datos de propósito del aporte).
    * 3. ingreso_pecuniario (Datos del movimiento de dinero a una cuenta).
    *
    * @param ingreso Datos generales del ingreso (fecha, monto, origen).
-   * @param donacion Datos específicos de la donación (certificado).
+   * @param donacion Datos específicos de la donación (propósito).
    * @param pecuniario Datos financieros (cuenta destino).
    * @return El ID del ingreso generado.
    */
@@ -194,6 +194,56 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    */
   def listarIngresos(): List[IngresoRecurso] = {
     ctx.run(query[IngresoRecurso])
+  }
+
+  /**
+   * Lista los ingresos con un tipo semántico para historial.
+   */
+  def listarIngresosConTipo(): List[IngresoHistorial] = {
+    val ingresos = ctx.run(query[IngresoRecurso])
+    val compras = ctx.run(query[IngresoCompra]).flatMap(_.ingresoId).toSet
+    val subvenciones = ctx.run(query[IngresoSubvencion]).flatMap(_.ingresoId).toSet
+    val donaciones = ctx.run(query[IngresoDonacion]).flatMap(_.ingresoId).toSet
+    val pecuniarios = ctx.run(query[IngresoPecuniario]).flatMap(_.ingresoId).toSet
+    val detallesMap = ctx.run(query[DetalleIngresoRecurso]).flatMap(_.ingresoId).groupBy(identity).view.mapValues(_.size).toMap
+
+    val descripcionCompra = ctx.run(query[IngresoCompra]).flatMap { compra =>
+      compra.ingresoId.map(_ -> compra.numeroFacturaBoleta.orElse(compra.montoNeto.map(n => s"Factura ${compra.numeroFacturaBoleta.getOrElse("")} - Neto $n")))
+    }.collect { case (id, Some(desc)) => id -> desc }.toMap
+
+    val descripcionDonacion = ctx.run(query[IngresoDonacion]).flatMap { donacion =>
+      donacion.ingresoId.map(_ -> donacion.propositoEspecifico)
+    }.collect { case (id, Some(desc)) => id -> desc }.toMap
+
+    val descripcionSubvencion = ctx.run(query[IngresoSubvencion]).flatMap { sub =>
+      sub.ingresoId.map(_ -> sub.nombreProyecto)
+    }.collect { case (id, Some(desc)) => id -> desc }.toMap
+
+    ingresos.map { ingreso =>
+      val id = ingreso.id
+      val tipo =
+        if (compras.contains(id)) "Compra"
+        else if (subvenciones.contains(id)) "Subvencion"
+        else if (donaciones.contains(id) && detallesMap.getOrElse(id, 0) > 0) "DonacionBienes"
+        else if (donaciones.contains(id)) "DonacionPecuniaria"
+        else if (pecuniarios.contains(id)) "IngresoPecuniario"
+        else ingreso.tipoTransaccion.getOrElse("Ingreso")
+
+      val descripcion =
+        if (compras.contains(id)) descripcionCompra.get(id)
+        else if (subvenciones.contains(id)) descripcionSubvencion.get(id)
+        else if (donaciones.contains(id)) descripcionDonacion.get(id)
+        else None
+
+      IngresoHistorial(
+        id = ingreso.id,
+        fecha = ingreso.fecha,
+        tipo = tipo,
+        montoTotal = ingreso.montoTotal,
+        estado = ingreso.estado,
+        descripcion = descripcion
+      )
+    }.sortBy(_.fecha)(Ordering.Option(Ordering[java.time.LocalDate]).reverse)
   }
 
   /**

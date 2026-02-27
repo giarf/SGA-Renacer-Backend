@@ -11,7 +11,8 @@ trait ApiSupport {
 
   // CORS Headers
   val corsHeaders = Seq(
-    "Access-Control-Allow-Origin" -> "http://localhost:5173",
+//    "Access-Control-Allow-Origin" -> "http://localhost:5173",
+    "Access-Control-Allow-Origin" -> "https://sga.familiarenacer.cl",
 //    "Access-Control-Allow-Origin" -> "null",
     "Access-Control-Allow-Methods" -> "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers" -> "Content-Type, Authorization",
@@ -35,21 +36,21 @@ trait ApiSupport {
 
   // ===== JSON Formatters Implícitos =====
 
-  implicit val entidadFormat: OFormat[Entidad] = Json.format[Entidad]
-  implicit val personaFormat: OFormat[PersonaNatural] = Json.format[PersonaNatural]
-  implicit val institucionFormat: OFormat[Institucion] = Json.format[Institucion]
-  implicit val cuentaFinancieraFormat: OFormat[CuentaFinanciera] = Json.format[CuentaFinanciera]
-  implicit val beneficiarioFormat: OFormat[Beneficiario] = Json.format[Beneficiario]
-  implicit val colaboradorFormat: OFormat[Colaborador] = Json.format[Colaborador]
-  implicit val trabajadorFormat: OFormat[Trabajador] = Json.format[Trabajador]
-  implicit val directivoFormat: OFormat[Directivo] = Json.format[Directivo]
-  implicit val familiaFormat: OFormat[Familia] = Json.format[Familia]
-  implicit val ingresoFormat: OFormat[IngresoRecurso] = Json.format[IngresoRecurso]
-  implicit val donacionFormat: OFormat[IngresoDonacion] = Json.format[IngresoDonacion]
-  implicit val pecuniarioFormat: OFormat[IngresoPecuniario] = Json.format[IngresoPecuniario]
-  implicit val compraFormat: OFormat[IngresoCompra] = Json.format[IngresoCompra]
-  implicit val subvencionFormat: OFormat[IngresoSubvencion] = Json.format[IngresoSubvencion]
-  implicit val detalleIngresoFormat: OFormat[DetalleIngresoRecurso] = Json.format[DetalleIngresoRecurso]
+  implicit val entidadFormat: OFormat[Entidad] = Json.using[Json.WithDefaultValues].format[Entidad]
+  implicit val personaFormat: OFormat[PersonaNatural] = Json.using[Json.WithDefaultValues].format[PersonaNatural]
+  implicit val institucionFormat: OFormat[Institucion] = Json.using[Json.WithDefaultValues].format[Institucion]
+  implicit val cuentaFinancieraFormat: OFormat[CuentaFinanciera] = Json.using[Json.WithDefaultValues].format[CuentaFinanciera]
+  implicit val beneficiarioFormat: OFormat[Beneficiario] = Json.using[Json.WithDefaultValues].format[Beneficiario]
+  implicit val colaboradorFormat: OFormat[Colaborador] = Json.using[Json.WithDefaultValues].format[Colaborador]
+  implicit val trabajadorFormat: OFormat[Trabajador] = Json.using[Json.WithDefaultValues].format[Trabajador]
+  implicit val directivoFormat: OFormat[Directivo] = Json.using[Json.WithDefaultValues].format[Directivo]
+  implicit val familiaFormat: OFormat[Familia] = Json.using[Json.WithDefaultValues].format[Familia]
+  implicit val ingresoFormat: OFormat[IngresoRecurso] = Json.using[Json.WithDefaultValues].format[IngresoRecurso]
+  implicit val donacionFormat: OFormat[IngresoDonacion] = Json.using[Json.WithDefaultValues].format[IngresoDonacion]
+  implicit val pecuniarioFormat: OFormat[IngresoPecuniario] = Json.using[Json.WithDefaultValues].format[IngresoPecuniario]
+  implicit val compraFormat: OFormat[IngresoCompra] = Json.using[Json.WithDefaultValues].format[IngresoCompra]
+  implicit val subvencionFormat: OFormat[IngresoSubvencion] = Json.using[Json.WithDefaultValues].format[IngresoSubvencion]
+  implicit val detalleIngresoFormat: OFormat[DetalleIngresoRecurso] = Json.using[Json.WithDefaultValues].format[DetalleIngresoRecurso]
   implicit val egresoFormat: OFormat[EgresoRecurso] = Json.format[EgresoRecurso]
   implicit val ayudaSocialFormat: OFormat[EgresoAyudaSocial] = Json.format[EgresoAyudaSocial]
   implicit val consumoInternoFormat: OFormat[EgresoConsumoInterno] = Json.format[EgresoConsumoInterno]
@@ -57,5 +58,6 @@ trait ApiSupport {
   implicit val solicitudFormat: OFormat[SolicitudMaterial] = Json.format[SolicitudMaterial]
   implicit val itemSolicitudFormat: OFormat[ItemSolicitud] = Json.format[ItemSolicitud]
   implicit val resumenFormat: OFormat[EntidadResumen] = Json.format[EntidadResumen]
+  implicit val ingresoHistorialFormat: OFormat[IngresoHistorial] = Json.format[IngresoHistorial]
   implicit val itemCatalogoFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
 }

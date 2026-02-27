@@ -17,14 +17,14 @@ import java.time.LocalDate
  * @param creadoPorId ID del trabajador que registró el ingreso.
  */
 case class IngresoRecurso(
-  id: Int,
+  id: Int = 0,
   origenEntidadId: Option[Int] = None,
   responsableInternoId: Option[Int] = None,
   solicitudId: Option[Int] = None,
-  fecha: Option[LocalDate] = None,
   tipoTransaccion: Option[String] = None,
   montoTotal: Option[BigDecimal] = None,
   estado: Option[String] = None,
+  anotaciones: Option[String] = None,
   creadoPorId: Option[Int] = None
 )
 
@@ -62,13 +62,13 @@ case class IngresoCompra(
  * Detalle específico para ingreso por donación.
  *
  * @param ingresoId Identificador del ingreso.
- * @param numeroCertificado Número de certificado de donación emitido.
  * @param propositoEspecifico Propósito o restricción de uso de la donación.
+ * @param gestorId ID del gestor responsable del caso (si aplica).
  */
 case class IngresoDonacion(
   ingresoId: Option[Int] = None,
-  numeroCertificado: Option[String] = None,
-  propositoEspecifico: Option[String] = None
+  propositoEspecifico: Option[String] = None,
+  gestorId: Option[Int] = None
 )
 
 /**

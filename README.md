@@ -73,6 +73,8 @@ curl -X POST http://localhost:8080/api/personas \
   }'
 ```
 
+> Nota: Si el ítem ya existe en el catálogo, incluye `itemCatalogoId` con su valor; si es uno nuevo, omite ese campo y el backend lo creará automáticamente.
+
 <details>
 <summary>Respuesta exitosa — <code>201</code></summary>
 
@@ -335,17 +337,17 @@ curl -X POST http://localhost:8080/api/ingresos/donacion \
   -H "Content-Type: application/json" \
   -d '{
     "ingreso": {
-      "id": 0,
       "origenEntidadId": 2,
       "responsableInternoId": 5,
       "montoTotal": 50000,
       "tipoTransaccion": "Donacion",
-      "estado": "Cerrado"
+      "estado": "Cerrado",
+      "anotaciones": "Colecta municipal julio"
     },
     "donacion": {
       "ingresoId": 0,
-      "numeroCertificado": "DON-2026-001",
-      "propositoEspecifico": "Programa Invierno"
+      "propositoEspecifico": "Programa Invierno",
+      "gestorId": 7
     },
     "pecuniario": {
       "ingresoId": 0,
@@ -373,22 +375,20 @@ curl -X POST http://localhost:8080/api/ingresos/donacion-bienes \
   -H "Content-Type: application/json" \
   -d '{
     "ingreso": {
-      "id": 0,
       "origenEntidadId": 2,
       "responsableInternoId": 5,
       "montoTotal": 30000,
       "tipoTransaccion": "Donacion",
-      "estado": "Cerrado"
+      "estado": "Cerrado",
+      "anotaciones": "Entrega campaña abrigo"
     },
     "donacion": {
       "ingresoId": 0,
-      "numeroCertificado": "DON-2026-002",
-      "propositoEspecifico": "Donación de ropa"
+      "propositoEspecifico": "Donación de ropa",
+      "gestorId": 7
     },
     "items": [
       {
-        "id": 0,
-        "itemCatalogoId": 0,
         "nombre": "Chaqueta Polar",
         "categoria": "Vestuario",
         "unidad": "Unidades",
@@ -417,7 +417,6 @@ curl -X POST http://localhost:8080/api/ingresos/compra \
   -H "Content-Type: application/json" \
   -d '{
     "ingreso": {
-      "id": 0,
       "origenEntidadId": 10,
       "responsableInternoId": 5,
       "montoTotal": 120000,
@@ -461,7 +460,6 @@ curl -X POST http://localhost:8080/api/ingresos/subvencion \
   -H "Content-Type: application/json" \
   -d '{
     "ingreso": {
-      "id": 0,
       "origenEntidadId": 15,
       "responsableInternoId": 5,
       "montoTotal": 5000000,
@@ -512,24 +510,18 @@ curl -X POST http://localhost:8080/api/egresos/ayuda-social \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
-      "id": 0,
-      "fecha": "2026-02-15",
       "tipoEgreso": "AyudaSocial",
       "montoValorizadoTotal": 25000,
       "creadoPorId": 5
     },
     "ayuda": {
-      "egresoId": 0,
       "beneficiarioPersonaId": 3,
       "motivoEntrega": "Necesidad urgente por bajas temperaturas"
     },
     "detalles": [
       {
-        "id": 0,
-        "egresoId": 0,
         "itemCatalogoId": 1,
-        "cantidad": 2,
-        "precioUnitarioPpp": 4500
+        "cantidad": 2
       }
     ]
   }'
@@ -542,28 +534,24 @@ curl -X POST http://localhost:8080/api/egresos/consumo-interno \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
-      "id": 0,
-      "fecha": "2026-02-15",
       "tipoEgreso": "ConsumoInterno",
       "montoValorizadoTotal": 15000,
       "creadoPorId": 5
     },
     "consumo": {
-      "egresoId": 0,
       "programaEvento": "Taller de Arte - Febrero",
       "responsablePersonaId": 7
     },
     "detalles": [
       {
-        "id": 0,
-        "egresoId": 0,
         "itemCatalogoId": 12,
-        "cantidad": 10,
-        "precioUnitarioPpp": 1500
+        "cantidad": 10
       }
     ]
   }'
 ```
+
+> Nota: `created_at` se completa automáticamente en base de datos y el backend rellena `precioUnitarioPpp` usando el precio promedio del ítem seleccionado; sólo necesitas indicar `itemCatalogoId` y la cantidad egresada.
 
 ---
 
@@ -586,16 +574,14 @@ Gestión de ítems de inventario, búsqueda y utilitarios.
 curl -X POST http://localhost:8080/api/catalogo \
   -H "Content-Type: application/json" \
   -d '{
-    "id": 0,
     "nombre": "Arroz Grado 2",
     "categoria": "Alimentos",
     "unidadMedidaEstandar": "Kilos",
-    "stockActual": 0,
-    "valorTotalStock": 0,
-    "precioPromedioPonderado": 0,
     "precioReferencia": 1200
   }'
 ```
+
+> Nota: El backend inicializa `stockActual`, `valorTotalStock` y `precioPromedioPonderado` en 0 automáticamente al crear un ítem.
 
 <details>
 <summary>Respuesta exitosa — <code>201</code></summary>

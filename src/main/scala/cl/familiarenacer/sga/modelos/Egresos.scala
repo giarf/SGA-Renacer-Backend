@@ -12,7 +12,7 @@ import java.time.LocalDate
  * @param creadoPorId ID del trabajador que registró el egreso.
  */
 case class EgresoRecurso(
-  id: Int,
+  id: Int = 0,
   fecha: Option[LocalDate] = None,
   tipoEgreso: Option[String] = None,
   montoValorizadoTotal: Option[BigDecimal] = None,
@@ -55,7 +55,7 @@ case class EgresoConsumoInterno(
  * @param precioUnitarioPpp Precio promedio ponderado al momento del egreso.
  */
 case class DetalleEgresoRecurso(
-  id: Int,
+  id: Int = 0,
   egresoId: Option[Int] = None,
   itemCatalogoId: Option[Int] = None,
   cantidad: Option[BigDecimal] = None,

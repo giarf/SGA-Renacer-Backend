@@ -19,3 +19,22 @@ case class EntidadResumen(
   identificador: String,
   nombreCompleto: String
 )
+
+/**
+ * Resumen para listar ingresos en el historial.
+ *
+ * @param id ID del ingreso.
+ * @param fecha Fecha de registro o contabilización.
+ * @param tipo Valor semántico (DonacionBienes, DonacionPecuniaria, Compra, etc.).
+ * @param montoTotal Monto asociado (si aplica).
+ * @param estado Estado administrativo del ingreso.
+ * @param descripcion Texto auxiliar (propósito, factura, proyecto, etc.).
+ */
+case class IngresoHistorial(
+  id: Int,
+  fecha: Option[java.time.LocalDate],
+  tipo: String,
+  montoTotal: Option[BigDecimal],
+  estado: Option[String],
+  descripcion: Option[String]
+)

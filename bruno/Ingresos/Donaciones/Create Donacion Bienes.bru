@@ -13,22 +13,20 @@ post {
 body:json {
   {
     "ingreso": {
-      "id": 0,
       "origenEntidadId": {{personaId}},
       "responsableInternoId": {{personaId}},
       "montoTotal": 30000,
       "tipoTransaccion": "Donacion",
-      "estado": "Cerrado"
+      "estado": "Cerrado",
+      "anotaciones": "Campaña abrigo #{{uniqueId}}"
     },
     "donacion": {
       "ingresoId": 0,
-      "numeroCertificado": "DON-BIENES-{{uniqueId}}",
-      "propositoEspecifico": "Donación de ropa de invierno"
+      "propositoEspecifico": "Donación de ropa de invierno",
+      "gestorId": {{personaId}}
     },
     "items": [
       {
-        "id": 0,
-        "itemCatalogoId": 0,
         "nombre": "Chaqueta Polar Test {{uniqueId}}",
         "categoria": "Vestuario",
         "unidad": "Unidades",
@@ -54,11 +52,11 @@ tests {
   test("Status code is 201", function() {
     expect(res.status).to.equal(201);
   });
-
+  
   test("Response has ingreso ID", function() {
     expect(res.body.id_ingreso).to.be.a("number");
   });
-
+  
   test("Success message is present", function() {
     expect(res.body.mensaje).to.include("bienes");
   });
