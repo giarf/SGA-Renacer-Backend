@@ -13,6 +13,7 @@ post {
 body:json {
   {
     "egreso": {
+      "fecha": "{{todayDate}}",
       "tipoEgreso": "AyudaSocial",
       "montoValorizadoTotal": 25000
     },
@@ -27,6 +28,11 @@ body:json {
       }
     ]
   }
+}
+
+script:pre-request {
+  const today = new Date().toISOString().split("T")[0];
+  bru.setVar("todayDate", today);
 }
 
 script:post-response {

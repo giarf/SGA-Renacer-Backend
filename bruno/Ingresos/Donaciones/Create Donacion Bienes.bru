@@ -15,6 +15,7 @@ body:json {
     "ingreso": {
       "origenEntidadId": {{personaId}},
       "responsableInternoId": {{personaId}},
+      "fecha": "{{todayDate}}",
       "montoTotal": 30000,
       "tipoTransaccion": "Donacion",
       "estado": "Cerrado",
@@ -40,6 +41,8 @@ body:json {
 script:pre-request {
   const uniqueId = Math.floor(Math.random() * 100000);
   bru.setVar("uniqueId", uniqueId);
+  const today = new Date().toISOString().split("T")[0];
+  bru.setVar("todayDate", today);
 }
 
 script:post-response {

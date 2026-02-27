@@ -339,6 +339,7 @@ curl -X POST http://localhost:8080/api/ingresos/donacion \
     "ingreso": {
       "origenEntidadId": 2,
       "responsableInternoId": 5,
+      "fecha": "2026-02-27",
       "montoTotal": 50000,
       "tipoTransaccion": "Donacion",
       "estado": "Cerrado",
@@ -356,6 +357,8 @@ curl -X POST http://localhost:8080/api/ingresos/donacion \
     }
   }'
 ```
+
+> Nota: Si omites `fecha`, el backend usa automáticamente la fecha actual (`LocalDate.now()`), pero puedes enviarla para registrar movimientos de días anteriores.
 
 <details>
 <summary>Respuesta exitosa — <code>201</code></summary>
@@ -377,6 +380,7 @@ curl -X POST http://localhost:8080/api/ingresos/donacion-bienes \
     "ingreso": {
       "origenEntidadId": 2,
       "responsableInternoId": 5,
+      "fecha": "2026-02-27",
       "montoTotal": 30000,
       "tipoTransaccion": "Donacion",
       "estado": "Cerrado",
@@ -419,6 +423,7 @@ curl -X POST http://localhost:8080/api/ingresos/compra \
     "ingreso": {
       "origenEntidadId": 10,
       "responsableInternoId": 5,
+      "fecha": "2026-02-27",
       "montoTotal": 120000,
       "tipoTransaccion": "Compra",
       "estado": "Cerrado"
@@ -462,6 +467,7 @@ curl -X POST http://localhost:8080/api/ingresos/subvencion \
     "ingreso": {
       "origenEntidadId": 15,
       "responsableInternoId": 5,
+      "fecha": "2026-02-27",
       "montoTotal": 5000000,
       "tipoTransaccion": "Subvencion",
       "estado": "Abierto"
@@ -490,6 +496,35 @@ curl -X POST http://localhost:8080/api/ingresos/subvencion \
 ```
 </details>
 
+#### Ejemplo — `GET /api/ingresos`
+
+```bash
+curl http://localhost:8080/api/ingresos
+```
+
+```json
+[
+  {
+    "id": 42,
+    "fecha": "2026-02-25",
+    "tipo": "DonacionPecuniaria",
+    "montoTotal": 50000,
+    "estado": "Cerrado",
+    "descripcion": "Programa Invierno"
+  },
+  {
+    "id": 41,
+    "fecha": "2026-02-24",
+    "tipo": "DonacionBienes",
+    "montoTotal": 30000,
+    "estado": "Cerrado",
+    "descripcion": "Donación de ropa"
+  }
+]
+```
+
+> Los posibles valores de `tipo` son `DonacionPecuniaria`, `DonacionBienes`, `Compra`, `Subvencion` e `IngresoPecuniario`. Se ordenan por fecha (más recientes primero) para servir como historial.
+
 ---
 
 ### 📤 Egresos
@@ -510,6 +545,7 @@ curl -X POST http://localhost:8080/api/egresos/ayuda-social \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
+      "fecha": "2026-02-27",
       "tipoEgreso": "AyudaSocial",
       "montoValorizadoTotal": 25000,
       "creadoPorId": 5
@@ -527,6 +563,8 @@ curl -X POST http://localhost:8080/api/egresos/ayuda-social \
   }'
 ```
 
+> Nota: La API aplica `fecha = hoy` cuando el campo no se incluye, pero puedes enviarlo para documentar entregas retroactivas.
+
 #### Ejemplo — `POST /api/egresos/consumo-interno`
 
 ```bash
@@ -534,6 +572,7 @@ curl -X POST http://localhost:8080/api/egresos/consumo-interno \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
+      "fecha": "2026-02-27",
       "tipoEgreso": "ConsumoInterno",
       "montoValorizadoTotal": 15000,
       "creadoPorId": 5

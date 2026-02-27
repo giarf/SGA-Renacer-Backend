@@ -14,6 +14,7 @@ object TestJson extends App {
   "ingreso": {
     "origenEntidadId": 45,
     "responsableInternoId": 45,
+    "fecha": "2026-02-27",
     "montoTotal": 50000,
     "tipoTransaccion": "Donacion",
     "estado": "Cerrado",
