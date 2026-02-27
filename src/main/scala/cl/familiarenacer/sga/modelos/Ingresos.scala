@@ -21,6 +21,7 @@ case class IngresoRecurso(
   origenEntidadId: Option[Int] = None,
   responsableInternoId: Option[Int] = None,
   solicitudId: Option[Int] = None,
+  fecha: Option[LocalDate] = None,
   tipoTransaccion: Option[String] = None,
   montoTotal: Option[BigDecimal] = None,
   estado: Option[String] = None,

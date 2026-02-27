@@ -4,6 +4,7 @@ import cl.familiarenacer.sga.api.ApiSupport
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.{DonacionRepository, InventarioRepository}
 import play.api.libs.json._
+import java.time.LocalDate
 
 class IngresosRoutes(
   donacionRepo: DonacionRepository,
