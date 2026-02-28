@@ -95,7 +95,7 @@ case class IngresoSubvencion(
  * @param precioUnitarioIngreso Costo unitario al momento del ingreso.
  */
 case class DetalleIngresoRecurso(
-  id: Int,
+  id: Int = 0,
   ingresoId: Option[Int] = None,
   itemCatalogoId: Option[Int] = None,
   cantidad: Option[BigDecimal] = None,

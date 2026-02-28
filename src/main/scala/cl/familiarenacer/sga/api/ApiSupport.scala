@@ -58,6 +58,18 @@ trait ApiSupport {
   implicit val solicitudFormat: OFormat[SolicitudMaterial] = Json.format[SolicitudMaterial]
   implicit val itemSolicitudFormat: OFormat[ItemSolicitud] = Json.format[ItemSolicitud]
   implicit val resumenFormat: OFormat[EntidadResumen] = Json.format[EntidadResumen]
-  implicit val ingresoHistorialFormat: OFormat[IngresoHistorial] = Json.format[IngresoHistorial]
+  implicit val ingresoHistorialWrites: OWrites[IngresoHistorial] = OWrites { ingreso =>
+    val base = Json.obj(
+      "id" -> ingreso.id,
+      "tipo" -> ingreso.tipo
+    )
+
+    val fechaJson = ingreso.fecha.map(f => Json.obj("fecha" -> Json.toJson(f))).getOrElse(Json.obj())
+    val montoJson = ingreso.montoTotal.map(m => Json.obj("montoTotal" -> Json.toJson(m))).getOrElse(Json.obj())
+    val estadoJson = ingreso.estado.map(e => Json.obj("estado" -> Json.toJson(e))).getOrElse(Json.obj())
+    val descJson = ingreso.descripcion.map(d => Json.obj("descripcion" -> Json.toJson(d))).getOrElse(Json.obj())
+
+    base ++ fechaJson ++ montoJson ++ estadoJson ++ descJson
+  }
   implicit val itemCatalogoFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
 }
