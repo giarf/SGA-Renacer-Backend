@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo}
+import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo, EgresoRecurso, EgresoPecuniario}
 import io.getquill._
 
 /**
@@ -130,16 +130,8 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         }
       }
 
-      // 4. Descontar saldo de la cuenta origen
-      val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
-      val cero = BigDecimal(0)
-      compra.cuentaOrigenId.foreach { cuentaId =>
-        ctx.run(
-          query[CuentaFinanciera]
-            .filter(_.id == lift(cuentaId))
-            .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) - lift(monto)))
-        )
-      }
+      // 4. Registrar egreso pecuniario espejo de la compra y descontar saldo.
+      registrarEgresoPecuniarioPorCompra(ingresoId, ingreso, compra)
 
       ingresoId.toLong
     }
@@ -294,5 +286,59 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     ctx.run(
       query[IngresoRecurso].filter(_.id == lift(id)).delete
     ) > 0
+  }
+
+  private def registrarEgresoPecuniarioPorCompra(
+    ingresoId: Int,
+    ingreso: IngresoRecurso,
+    compra: IngresoCompra
+  ): Unit = {
+    val cuentaId = compra.cuentaOrigenId.getOrElse(
+      throw new IllegalArgumentException("cuentaOrigenId es obligatorio para registrar compra como egreso pecuniario.")
+    )
+    val monto = ingreso.montoTotal.getOrElse(BigDecimal(0))
+    if (monto <= 0) {
+      throw new IllegalArgumentException("montoTotal debe ser mayor a 0 para registrar compra como egreso pecuniario.")
+    }
+
+    val numeroDocumento = compra.numeroFacturaBoleta.map(_.trim).filter(_.nonEmpty).getOrElse("sin_documento")
+    val egresoCompra = EgresoRecurso(
+      fecha = ingreso.fecha,
+      tipoEgreso = Some("Ajuste"),
+      montoTotal = Some(monto),
+      responsableInternoId = ingreso.responsableInternoId,
+      anotaciones = Some(s"Egreso automático por compra ingreso_id=$ingresoId, doc=$numeroDocumento"),
+      destinoEntidadId = ingreso.origenEntidadId,
+      propositoEspecifico = Some(s"Compra asociada al ingreso $ingresoId")
+    )
+
+    val egresoId = ctx.run(
+      query[EgresoRecurso]
+        .insertValue(lift(egresoCompra))
+        .returningGenerated(_.id)
+    )
+
+    ctx.run(
+      query[EgresoPecuniario].insertValue(
+        lift(
+          EgresoPecuniario(
+            egresoId = egresoId,
+            cuentaOrigenId = Some(cuentaId),
+            metodoTransferencia = Some("Compra")
+          )
+        )
+      )
+    )
+
+    val cero = BigDecimal(0)
+    val filas = ctx.run(
+      query[CuentaFinanciera]
+        .filter(_.id == lift(cuentaId))
+        .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) - lift(monto)))
+    )
+
+    if (filas == 0) {
+      throw new IllegalArgumentException(s"Cuenta financiera con ID $cuentaId no existe")
+    }
   }
 }
