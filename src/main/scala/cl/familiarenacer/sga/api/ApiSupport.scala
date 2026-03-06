@@ -11,12 +11,11 @@ import play.api.libs.functional.syntax._
 trait ApiSupport {
 
   // CORS Headers
-  val corsHeaders = Seq(
-//    "Access-Control-Allow-Origin" -> "http://localhost:5173",
+  val corsHeaders: Seq[(String, String)] = Seq(
     "Access-Control-Allow-Origin" -> "https://sga.familiarenacer.cl",
-//    "Access-Control-Allow-Origin" -> "null",
-    "Access-Control-Allow-Methods" -> "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers" -> "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials" -> "true",
+    "Access-Control-Allow-Methods" -> "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers" -> "Content-Type, Authorization, X-Requested-With, Accept, Origin",
     "Access-Control-Max-Age" -> "86400"
   )
 

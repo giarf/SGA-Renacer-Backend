@@ -7,7 +7,6 @@ project/plugins/project/
 .history
 .sbt_home
 build.log
-src/main/resources/application.conf
 ### --- Java & JVM ---
 *.class
 *.log
@@ -31,7 +30,9 @@ out/
 application.conf
 jdbc.properties
 secrets.xml
-
+# versionar plantilla del backend (variables por env)
+!src/main/resources/application.conf
+src/main/resources/1application.conf
 ### --- Sistemas Operativos ---
 .DS_Store
 Thumbs.db

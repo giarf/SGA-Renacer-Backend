@@ -5,4 +5,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["sbt", "runMain cl.familiarenacer.sga.api.SgaApiApp"]
+CMD ["sbt", "runMain cl.familiarenacer.sga.api.SgaApiServer"]
