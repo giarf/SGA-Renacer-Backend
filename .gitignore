@@ -35,3 +35,7 @@ secrets.xml
 ### --- Sistemas Operativos ---
 .DS_Store
 Thumbs.db
+
+### --- Boletas locales ---
+boletas/*
+!boletas/.gitkeep

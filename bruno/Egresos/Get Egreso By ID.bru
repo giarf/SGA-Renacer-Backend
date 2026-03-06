@@ -1,0 +1,21 @@
+meta {
+  name: Get Egreso By ID
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/egresos/{{egresoAyudaId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("Response has egreso", function() {
+    expect(res.body).to.have.property("egreso");
+  });
+}

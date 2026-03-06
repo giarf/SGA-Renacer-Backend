@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial}
+import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo}
 import io.getquill._
 
 /**
@@ -88,10 +88,41 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       // 3. Insertar los detalles de los ítems
       if (detalles.nonEmpty) {
         detalles.foreach { detalle =>
+          val itemId = detalle.itemCatalogoId.filter(_ > 0)
+            .getOrElse(throw new IllegalArgumentException("Cada detalle de compra debe incluir itemCatalogoId válido."))
+          val cantidad = detalle.cantidad.getOrElse(BigDecimal(0))
+          val precio = detalle.precioUnitarioIngreso.getOrElse(BigDecimal(0))
+
+          if (cantidad <= 0) throw new IllegalArgumentException(s"Cantidad inválida para item $itemId.")
+          if (precio < 0) throw new IllegalArgumentException(s"Precio unitario inválido para item $itemId.")
+
+          // Lock pesimista para evitar condiciones de carrera en stock/PPP.
+          val itemActual = ctx.run(
+            query[ItemCatalogo].filter(_.id == lift(itemId)).forUpdate
+          ).headOption.getOrElse(throw new IllegalArgumentException(s"Item con ID $itemId no existe"))
+
+          val stockActual = itemActual.stockActual.getOrElse(BigDecimal(0))
+          val valorTotalActual = itemActual.valorTotalStock.getOrElse(BigDecimal(0))
+          val nuevoStock = stockActual + cantidad
+          val nuevoValorTotal = valorTotalActual + (cantidad * precio)
+          val nuevoPPP =
+            if (nuevoStock > 0) (nuevoValorTotal / nuevoStock).setScale(4, BigDecimal.RoundingMode.HALF_UP)
+            else BigDecimal(0)
+
+          ctx.run(
+            query[ItemCatalogo]
+              .filter(_.id == lift(itemId))
+              .update(
+                _.stockActual -> lift(Option(nuevoStock)),
+                _.valorTotalStock -> lift(Option(nuevoValorTotal)),
+                _.precioPromedioPonderado -> lift(Option(nuevoPPP))
+              )
+          )
+
           ctx.run(
             query[DetalleIngresoRecurso].insert(
               _.ingresoId             -> lift(Option(ingresoId)),
-              _.itemCatalogoId        -> lift(detalle.itemCatalogoId),
+              _.itemCatalogoId        -> lift(Option(itemId)),
               _.cantidad              -> lift(detalle.cantidad),
               _.precioUnitarioIngreso -> lift(detalle.precioUnitarioIngreso)
             )

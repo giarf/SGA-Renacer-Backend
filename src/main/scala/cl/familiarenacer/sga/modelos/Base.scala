@@ -55,7 +55,7 @@ case class Familia(
  * @param saldoActual Saldo actual disponible en la cuenta.
  */
 case class CuentaFinanciera(
-  id: Int,
+  id: Int = 0,
   nombre: Option[String],
   saldoActual: Option[BigDecimal]
 )

@@ -21,7 +21,7 @@ body:json {
       "estado": "Cerrado"
     },
     "compra": {
-      "ingresoId": 0,
+  
       "cuentaOrigenId": {{cuentaId}},
       "numeroFacturaBoleta": "F-TEST-{{uniqueId}}",
       "montoNeto": 100840,
@@ -54,11 +54,11 @@ tests {
   test("Status code is 201", function() {
     expect(res.status).to.equal(201);
   });
-
+  
   test("Response has ingreso ID", function() {
     expect(res.body.id_ingreso).to.be.a("number");
   });
-
+  
   test("Success message is present", function() {
     expect(res.body.mensaje).to.include("Compra");
   });

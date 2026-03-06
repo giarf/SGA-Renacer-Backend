@@ -426,7 +426,8 @@ curl -X POST http://localhost:8080/api/ingresos/compra \
       "fecha": "2026-02-27",
       "montoTotal": 120000,
       "tipoTransaccion": "Compra",
-      "estado": "Cerrado"
+      "estado": "Cerrado",
+      "anotaciones": "Compra operativa"
     },
     "compra": {
       "ingresoId": 0,
@@ -529,30 +530,30 @@ curl http://localhost:8080/api/ingresos
 
 ### 📤 Egresos
 
-Registro tipificado de egresos (ayuda social, consumo interno).
+Registro unificado de egresos (pecuniarios y/o con detalle de ítems).
 
-| Método | Endpoint                         | Descripción                  |
-|--------|----------------------------------|------------------------------|
-| `GET`  | `/api/egresos`                   | Listar todos los egresos     |
-| `POST` | `/api/egresos/ayuda-social`      | Registrar ayuda social       |
-| `POST` | `/api/egresos/consumo-interno`   | Registrar consumo interno    |
-| `GET`  | `/api/egresos/:id`               | Obtener egreso por ID        |
+| Método   | Endpoint                                       | Descripción                                      |
+|----------|------------------------------------------------|--------------------------------------------------|
+| `POST`   | `/api/egresos`                                 | Crear egreso (con o sin `egreso_pecuniario`)    |
+| `GET`    | `/api/egresos`                                 | Listar egresos con filtros opcionales            |
+| `GET`    | `/api/egresos/:id`                             | Detalle (cabecera + pecuniario + detalles)       |
+| `PUT`    | `/api/egresos/:id`                             | Actualizar egreso                                |
+| `DELETE` | `/api/egresos/:id`                             | Eliminar egreso (revierte saldo si pecuniario)   |
 
-#### Ejemplo — `POST /api/egresos/ayuda-social`
+#### Ejemplo — `POST /api/egresos` (con detalles de ítems)
 
 ```bash
-curl -X POST http://localhost:8080/api/egresos/ayuda-social \
+curl -X POST http://localhost:8080/api/egresos \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
       "fecha": "2026-02-27",
-      "tipoEgreso": "AyudaSocial",
-      "montoValorizadoTotal": 25000,
-      "creadoPorId": 5
-    },
-    "ayuda": {
-      "beneficiarioPersonaId": 3,
-      "motivoEntrega": "Necesidad urgente por bajas temperaturas"
+      "tipoEgreso": "Ayuda Social",
+      "montoTotal": 25000,
+      "responsableInternoId": 5,
+      "anotaciones": "Entrega por campaña de invierno",
+      "destinoEntidadId": 3,
+      "propositoEspecifico": "Apoyo social urgente"
     },
     "detalles": [
       {
@@ -563,34 +564,31 @@ curl -X POST http://localhost:8080/api/egresos/ayuda-social \
   }'
 ```
 
-> Nota: La API aplica `fecha = hoy` cuando el campo no se incluye, pero puedes enviarlo para documentar entregas retroactivas.
-
-#### Ejemplo — `POST /api/egresos/consumo-interno`
+#### Ejemplo — `POST /api/egresos` (pecuniario)
 
 ```bash
-curl -X POST http://localhost:8080/api/egresos/consumo-interno \
+curl -X POST http://localhost:8080/api/egresos \
   -H "Content-Type: application/json" \
   -d '{
     "egreso": {
       "fecha": "2026-02-27",
-      "tipoEgreso": "ConsumoInterno",
-      "montoValorizadoTotal": 15000,
-      "creadoPorId": 5
+      "tipoEgreso": "Consumo Interno",
+      "montoTotal": 15000,
+      "responsableInternoId": 5,
+      "anotaciones": "Pago operativo de taller",
+      "destinoEntidadId": 7,
+      "propositoEspecifico": "Compra insumos taller"
     },
-    "consumo": {
-      "programaEvento": "Taller de Arte - Febrero",
-      "responsablePersonaId": 7
+    "pecuniario": {
+      "cuentaOrigenId": 2,
+      "metodoTransferencia": "Transferencia"
     },
-    "detalles": [
-      {
-        "itemCatalogoId": 12,
-        "cantidad": 10
-      }
-    ]
+    "detalles": []
   }'
 ```
 
-> Nota: `created_at` se completa automáticamente en base de datos y el backend rellena `precioUnitarioPpp` usando el precio promedio del ítem seleccionado; sólo necesitas indicar `itemCatalogoId` y la cantidad egresada.
+> Nota: La API aplica `fecha = hoy` cuando no se envía.  
+> Nota: `montoTotal` viene directo cuando existe `pecuniario`; si hay `detalles`, se calcula sumando `cantidad * precioUnitarioPpp`.
 
 ---
 
@@ -668,9 +666,7 @@ Gestión de cajas/cuentas bancarias y consulta de movimientos.
 curl -X POST http://localhost:8080/api/cuentas \
   -H "Content-Type: application/json" \
   -d '{
-    "id": 0,
-    "nombre": "Caja Chica",
-    "saldoActual": 0
+    "nombre": "Caja Chica"
   }'
 ```
 

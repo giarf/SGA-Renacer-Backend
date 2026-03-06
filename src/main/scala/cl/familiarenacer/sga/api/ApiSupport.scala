@@ -2,6 +2,7 @@ package cl.familiarenacer.sga.api
 
 import cl.familiarenacer.sga.modelos._
 import play.api.libs.json._
+import play.api.libs.functional.syntax._
 
 /**
  * Trait compartido por todas las rutas del API.
@@ -51,10 +52,25 @@ trait ApiSupport {
   implicit val compraFormat: OFormat[IngresoCompra] = Json.using[Json.WithDefaultValues].format[IngresoCompra]
   implicit val subvencionFormat: OFormat[IngresoSubvencion] = Json.using[Json.WithDefaultValues].format[IngresoSubvencion]
   implicit val detalleIngresoFormat: OFormat[DetalleIngresoRecurso] = Json.using[Json.WithDefaultValues].format[DetalleIngresoRecurso]
-  implicit val egresoFormat: OFormat[EgresoRecurso] = Json.format[EgresoRecurso]
-  implicit val ayudaSocialFormat: OFormat[EgresoAyudaSocial] = Json.format[EgresoAyudaSocial]
-  implicit val consumoInternoFormat: OFormat[EgresoConsumoInterno] = Json.format[EgresoConsumoInterno]
-  implicit val detalleEgresoFormat: OFormat[DetalleEgresoRecurso] = Json.format[DetalleEgresoRecurso]
+  implicit val egresoFormat: OFormat[EgresoRecurso] = OFormat(
+    (
+      (__ \ "id").readWithDefault[Int](0) and
+      (__ \ "fecha").readNullable[java.time.LocalDate] and
+      (__ \ "tipoEgreso").readNullable[String] and
+      (
+        (__ \ "montoTotal").readNullable[BigDecimal] orElse
+          (__ \ "montoValorizadoTotal").readNullable[BigDecimal]
+      ) and
+      (__ \ "responsableInternoId").readNullable[Int] and
+      (__ \ "anotaciones").readNullable[String] and
+      (__ \ "destinoEntidadId").readNullable[Int] and
+      (__ \ "propositoEspecifico").readNullable[String]
+    )(EgresoRecurso.apply _),
+    Json.writes[EgresoRecurso]
+  )
+  implicit val egresoPecuniarioFormat: OFormat[EgresoPecuniario] = Json.using[Json.WithDefaultValues].format[EgresoPecuniario]
+  implicit val detalleEgresoFormat: OFormat[DetalleEgresoRecurso] = Json.using[Json.WithDefaultValues].format[DetalleEgresoRecurso]
+  implicit val egresoDetalleFormat: OFormat[EgresoDetalle] = Json.format[EgresoDetalle]
   implicit val solicitudFormat: OFormat[SolicitudMaterial] = Json.format[SolicitudMaterial]
   implicit val itemSolicitudFormat: OFormat[ItemSolicitud] = Json.format[ItemSolicitud]
   implicit val resumenFormat: OFormat[EntidadResumen] = Json.format[EntidadResumen]

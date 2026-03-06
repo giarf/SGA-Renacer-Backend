@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/api/egresos/consumo-interno
+  url: {{baseUrl}}/api/egresos
   body: json
   auth: none
 }
@@ -14,24 +14,27 @@ body:json {
   {
     "egreso": {
       "fecha": "{{todayDate}}",
-      "tipoEgreso": "ConsumoInterno",
-      "montoValorizadoTotal": 15000
+      "tipoEgreso": "Consumo Interno",
+      "montoTotal": 15000,
+      "responsableInternoId": {{personaId}},
+      "anotaciones": "Pago operativo de taller",
+      "destinoEntidadId": {{personaId}},
+      "propositoEspecifico": "Compra insumos taller"
     },
-    "consumo": {
-      "programaEvento": "Taller de Arte - Test",
-      "responsablePersonaId": {{personaId}}
+    "pecuniario": {
+      "cuentaOrigenId": {{cuentaId}},
+      "metodoTransferencia": "Transferencia"
     },
-    "detalles": [
-      {
-        "itemCatalogoId": {{catalogoItemId}},
-        "cantidad": 10
-      }
-    ]
+    "detalles": []
   }
 }
 
 script:pre-request {
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const today = `${yyyy}-${mm}-${dd}`;
   bru.setVar("todayDate", today);
 }
 
@@ -51,6 +54,6 @@ tests {
   });
 
   test("Success message is present", function() {
-    expect(res.body.mensaje).to.include("Consumo interno");
+    expect(res.body.mensaje).to.include("Egreso");
   });
 }

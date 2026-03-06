@@ -8,6 +8,8 @@ import play.api.libs.json._
 class CuentasRoutes(cuentaRepo: CuentaFinancieraRepository)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
 
   // ===== ENDPOINTS =====
+  case class CrearCuentaRequest(nombre: String)
+  implicit val crearCuentaRequestFormat: OFormat[CrearCuentaRequest] = Json.format[CrearCuentaRequest]
 
   @cask.options("/api/cuentas")
   def cuentasOptions() = corsOptions()
@@ -33,10 +35,15 @@ class CuentasRoutes(cuentaRepo: CuentaFinancieraRepository)(implicit cc: castor.
   @cask.post("/api/cuentas")
   def crearCuenta(request: cask.Request) = {
     try {
-      val body = Json.parse(request.text()).as[CuentaFinanciera]
-      val idGenerado = cuentaRepo.crearCuenta(body)
+      val body = Json.parse(request.text()).as[CrearCuentaRequest]
+      val nombre = body.nombre.trim
+      if (nombre.isEmpty) throw new IllegalArgumentException("El nombre de la cuenta es obligatorio.")
+      val cuentaNueva = CuentaFinanciera(id = 0, nombre = Some(nombre), saldoActual = Some(BigDecimal(0)))
+      val idGenerado = cuentaRepo.crearCuenta(cuentaNueva)
       respond(Json.obj("id" -> idGenerado, "mensaje" -> "Cuenta creada exitosamente"), 201)
     } catch {
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)

@@ -1,0 +1,27 @@
+meta {
+  name: Update Egreso
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/egresos/{{egresoAyudaId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "egreso": {
+      "tipoEgreso": "Ajuste",
+      "montoTotal": 25000,
+      "anotaciones": "Ajuste administrativo de egreso"
+    }
+  }
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

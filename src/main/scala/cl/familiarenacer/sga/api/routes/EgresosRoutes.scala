@@ -4,25 +4,25 @@ import cl.familiarenacer.sga.api.ApiSupport
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.EgresoRepository
 import play.api.libs.json._
+
 import java.time.LocalDate
 
 class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
 
   // ===== DTOs =====
 
-  case class RegistrarAyudaSocialRequest(
+  case class CrearEgresoRequest(
     egreso: EgresoRecurso,
-    ayuda: EgresoAyudaSocial,
-    detalles: List[DetalleEgresoRecurso]
+    pecuniario: Option[EgresoPecuniario] = None,
+    detalles: List[DetalleEgresoRecurso] = Nil
   )
-  implicit val registrarAyudaSocialFormat: OFormat[RegistrarAyudaSocialRequest] = Json.format[RegistrarAyudaSocialRequest]
+  implicit val crearEgresoFormat: OFormat[CrearEgresoRequest] = Json.using[Json.WithDefaultValues].format[CrearEgresoRequest]
 
-  case class RegistrarConsumoInternoRequest(
+  case class ActualizarEgresoRequest(
     egreso: EgresoRecurso,
-    consumo: EgresoConsumoInterno,
-    detalles: List[DetalleEgresoRecurso]
+    pecuniario: Option[EgresoPecuniario] = None
   )
-  implicit val registrarConsumoInternoFormat: OFormat[RegistrarConsumoInternoRequest] = Json.format[RegistrarConsumoInternoRequest]
+  implicit val actualizarEgresoFormat: OFormat[ActualizarEgresoRequest] = Json.using[Json.WithDefaultValues].format[ActualizarEgresoRequest]
 
   // ===== ENDPOINTS =====
 
@@ -32,18 +32,34 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   @cask.options("/api/egresos/:id")
   def egresoByIdOptions(id: Int) = corsOptions()
 
-  @cask.options("/api/egresos/ayuda-social")
-  def ayudaSocialOptions() = corsOptions()
-
-  @cask.options("/api/egresos/consumo-interno")
-  def consumoInternoOptions() = corsOptions()
+  @cask.post("/api/egresos")
+  def crearEgreso(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[CrearEgresoRequest]
+      val egresoNormalizado = normalizarEgreso(body.egreso)
+      val id = egresoRepo.crearEgreso(egresoNormalizado, body.pecuniario, body.detalles)
+      respond(Json.obj("id" -> id, "mensaje" -> "Egreso registrado exitosamente"), 201)
+    } catch {
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
+      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
+        respond(Json.obj("error" -> "Referencia inválida: cuenta, destino o ítem no existe"), 409)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
 
   @cask.get("/api/egresos")
-  def listarEgresos() = {
+  def listarEgresos(tipo_egreso: String = "", destino_entidad_id: String = "") = {
     try {
-      val egresos = egresoRepo.listarEgresos()
+      val tipoOpt = Option(tipo_egreso).map(_.trim).filter(_.nonEmpty)
+      val destinoOpt = Option(destino_entidad_id).map(_.trim).filter(_.nonEmpty).map(_.toInt)
+      val egresos = egresoRepo.listarEgresos(tipoOpt, destinoOpt)
       respond(Json.toJson(egresos))
     } catch {
+      case _: NumberFormatException =>
+        respond(Json.obj("error" -> "destino_entidad_id debe ser numérico"), 400)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)
@@ -53,8 +69,8 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   @cask.get("/api/egresos/:id")
   def obtenerEgreso(id: Int) = {
     try {
-      egresoRepo.obtenerEgreso(id) match {
-        case Some(egreso) => respond(Json.toJson(egreso))
+      egresoRepo.obtenerEgresoDetalle(id) match {
+        case Some(egresoDetalle) => respond(Json.toJson(egresoDetalle))
         case None => respond(Json.obj("error" -> s"Egreso con ID $id no encontrado"), 404)
       }
     } catch {
@@ -64,32 +80,41 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
     }
   }
 
-  @cask.post("/api/egresos/ayuda-social")
-  def registrarAyudaSocial(request: cask.Request) = {
+  @cask.put("/api/egresos/:id")
+  def actualizarEgreso(id: Int, request: cask.Request) = {
     try {
-      val body = Json.parse(request.text()).as[RegistrarAyudaSocialRequest]
-      val egresoNormalizado = normalizarEgreso(body.egreso)
-      val id = egresoRepo.registrarAyudaSocial(egresoNormalizado, body.ayuda, body.detalles)
-      respond(Json.obj("id" -> id, "mensaje" -> "Ayuda social registrada exitosamente"), 201)
+      val body = Json.parse(request.text()).as[ActualizarEgresoRequest]
+      val filas = egresoRepo.actualizarEgreso(id, body.egreso, body.pecuniario)
+      if (filas > 0) {
+        respond(Json.obj("mensaje" -> "Egreso actualizado exitosamente"))
+      } else {
+        respond(Json.obj("error" -> s"Egreso con ID $id no encontrado"), 404)
+      }
     } catch {
+      case e: NoSuchElementException =>
+        respond(Json.obj("error" -> e.getMessage), 404)
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
       case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
-        respond(Json.obj("error" -> "Referencia inválida: beneficiario o ítem de catálogo no existe"), 409)
+        respond(Json.obj("error" -> "Referencia inválida al actualizar egreso"), 409)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)
     }
   }
 
-  @cask.post("/api/egresos/consumo-interno")
-  def registrarConsumoInterno(request: cask.Request) = {
+  @cask.delete("/api/egresos/:id")
+  def eliminarEgreso(id: Int) = {
     try {
-      val body = Json.parse(request.text()).as[RegistrarConsumoInternoRequest]
-      val egresoNormalizado = normalizarEgreso(body.egreso)
-      val id = egresoRepo.registrarConsumoInterno(egresoNormalizado, body.consumo, body.detalles)
-      respond(Json.obj("id" -> id, "mensaje" -> "Consumo interno registrado exitosamente"), 201)
+      val eliminado = egresoRepo.eliminarEgreso(id)
+      if (eliminado) {
+        respond(Json.obj("mensaje" -> "Egreso eliminado exitosamente"))
+      } else {
+        respond(Json.obj("error" -> s"Egreso con ID $id no encontrado"), 404)
+      }
     } catch {
-      case e: org.postgresql.util.PSQLException if e.getSQLState == "23503" =>
-        respond(Json.obj("error" -> "Referencia inválida: responsable o ítem de catálogo no existe"), 409)
+      case e: IllegalArgumentException =>
+        respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)

@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/api/egresos/ayuda-social
+  url: {{baseUrl}}/api/egresos
   body: json
   auth: none
 }
@@ -14,12 +14,12 @@ body:json {
   {
     "egreso": {
       "fecha": "{{todayDate}}",
-      "tipoEgreso": "AyudaSocial",
-      "montoValorizadoTotal": 25000
-    },
-    "ayuda": {
-      "beneficiarioPersonaId": {{personaId}},
-      "motivoEntrega": "Necesidad urgente por bajas temperaturas"
+      "tipoEgreso": "Ayuda Social",
+      "montoTotal": 25000,
+      "responsableInternoId": {{personaId}},
+      "anotaciones": "Entrega por campaña de invierno",
+      "destinoEntidadId": {{personaId}},
+      "propositoEspecifico": "Apoyo social urgente"
     },
     "detalles": [
       {
@@ -31,7 +31,11 @@ body:json {
 }
 
 script:pre-request {
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const today = `${yyyy}-${mm}-${dd}`;
   bru.setVar("todayDate", today);
 }
 
@@ -51,6 +55,6 @@ tests {
   });
 
   test("Success message is present", function() {
-    expect(res.body.mensaje).to.include("Ayuda social");
+    expect(res.body.mensaje).to.include("Egreso");
   });
 }
