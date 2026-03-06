@@ -304,7 +304,7 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val numeroDocumento = compra.numeroFacturaBoleta.map(_.trim).filter(_.nonEmpty).getOrElse("sin_documento")
     val egresoCompra = EgresoRecurso(
       fecha = ingreso.fecha,
-      tipoEgreso = Some("Ajuste"),
+      tipoEgreso = Some("Pago Compra"),
       montoTotal = Some(monto),
       responsableInternoId = ingreso.responsableInternoId,
       anotaciones = Some(s"Egreso automático por compra ingreso_id=$ingresoId, doc=$numeroDocumento"),
