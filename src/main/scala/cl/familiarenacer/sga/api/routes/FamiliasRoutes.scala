@@ -9,7 +9,7 @@ class FamiliasRoutes(familiaRepo: FamiliaRepository)(implicit cc: castor.Context
 
   // ===== DTOs =====
 
-  case class AgregarMiembroRequest(personaId: Int)
+  case class AgregarMiembroRequest(personaId: Int, rolFamiliar: Option[String] = None, observaciones: Option[String] = None)
   implicit val agregarMiembroFormat: OFormat[AgregarMiembroRequest] = Json.format[AgregarMiembroRequest]
 
   // ===== ENDPOINTS =====
@@ -100,7 +100,7 @@ class FamiliasRoutes(familiaRepo: FamiliaRepository)(implicit cc: castor.Context
   @cask.get("/api/familias/:id/beneficiarios")
   def listarMiembrosFamilia(id: Int) = {
     try {
-      val miembros = familiaRepo.obtenerMiembrosFamilia(id)
+      val miembros = familiaRepo.obtenerMiembrosDetalle(id)
       respond(Json.toJson(miembros))
     } catch {
       case e: Exception =>
@@ -113,8 +113,22 @@ class FamiliasRoutes(familiaRepo: FamiliaRepository)(implicit cc: castor.Context
   def agregarMiembroFamilia(id: Int, request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[AgregarMiembroRequest]
-      familiaRepo.agregarMiembro(id, body.personaId)
+      familiaRepo.agregarMiembroDetalle(id, body.personaId, body.rolFamiliar, body.observaciones)
       respond(Json.obj("mensaje" -> s"Beneficiario ${body.personaId} agregado a familia $id"))
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.put("/api/familias/:id/beneficiarios/:personaId")
+  def actualizarMiembroFamilia(id: Int, personaId: Int, request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[AgregarMiembroRequest]
+      val actualizado = familiaRepo.actualizarMiembroDetalle(id, personaId, body.rolFamiliar, body.observaciones)
+      if (actualizado > 0) respond(Json.obj("mensaje" -> s"Miembro $personaId actualizado"))
+      else respond(Json.obj("error" -> "No se encontró el miembro en la familia"), 404)
     } catch {
       case e: Exception =>
         e.printStackTrace()

@@ -40,10 +40,45 @@ case class Entidad(
  * @param jefeHogarId ID de la persona natural que actúa como jefe de hogar.
  */
 case class Familia(
-  id: Int,
+  id: Int = 0,
   nombreFamilia: Option[String],
   puntosVulnerabilidad: Option[Int],
-  jefeHogarId: Option[Int]
+  jefeHogarId: Option[Int],
+  justificacionVulnerabilidad: Option[String] = None
+)
+
+case class FamiliaMiembro(
+  familiaId: Int,
+  personaId: Int,
+  rolFamiliar: Option[String] = None,
+  observaciones: Option[String] = None
+)
+
+case class FamiliaMiembroDetalle(
+  id: Int,
+  personaId: Int,
+  nombres: String,
+  apellidos: Option[String],
+  rut: Option[String],
+  correo: Option[String] = None,
+  telefono: Option[String] = None,
+  fotoUrl: Option[String] = None,
+  rolFamiliar: Option[String] = None,
+  observaciones: Option[String] = None
+)
+
+case class Etiqueta(
+  id: Int,
+  nombre: String,
+  slug: String,
+  descripcion: Option[String] = None,
+  color: Option[String] = None,
+  activa: Boolean = true
+)
+
+case class EntidadEtiqueta(
+  entidadId: Int,
+  etiquetaId: Int
 )
 
 /**

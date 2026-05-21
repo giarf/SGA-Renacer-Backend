@@ -20,6 +20,9 @@ object SgaApiApp extends cask.Main {
   val institucionRepo = new InstitucionRepository(DB.ctx)
   val rolesRepo = new RolesRepository(DB.ctx)
   val familiaRepo = new FamiliaRepository(DB.ctx)
+  familiaRepo.asegurarEsquemaFamilias()
+  val etiquetaRepo = new EtiquetaRepository(DB.ctx)
+  etiquetaRepo.asegurarEsquemaEtiquetas()
   val egresoRepo = new EgresoRepository(DB.ctx)
   val solicitudRepo = new SolicitudRepository(DB.ctx)
   val cuentaRepo = new CuentaFinancieraRepository(DB.ctx)
@@ -31,6 +34,7 @@ object SgaApiApp extends cask.Main {
     new InstitucionesRoutes(institucionRepo, entidadRepo),
     new RolesRoutes(rolesRepo),
     new FamiliasRoutes(familiaRepo),
+    new EtiquetasRoutes(etiquetaRepo),
     new IngresosRoutes(donacionRepo, inventarioRepo),
     new EgresosRoutes(egresoRepo),
     new CatalogoRoutes(inventarioRepo),
