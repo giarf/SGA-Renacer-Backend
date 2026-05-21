@@ -9,7 +9,7 @@ class EtiquetasRoutes(etiquetaRepo: EtiquetaRepository)(implicit cc: castor.Cont
   case class EtiquetaRequest(nombre: String, descripcion: Option[String] = None, color: Option[String] = None, activa: Boolean = true)
   case class EntidadesMasivasRequest(entidadIds: List[Int])
 
-  implicit val etiquetaRequestFormat: OFormat[EtiquetaRequest] = Json.format[EtiquetaRequest]
+  implicit val etiquetaRequestFormat: OFormat[EtiquetaRequest] = Json.using[Json.WithDefaultValues].format[EtiquetaRequest]
   implicit val entidadesMasivasFormat: OFormat[EntidadesMasivasRequest] = Json.format[EntidadesMasivasRequest]
 
   private def slugify(value: String): String = {
