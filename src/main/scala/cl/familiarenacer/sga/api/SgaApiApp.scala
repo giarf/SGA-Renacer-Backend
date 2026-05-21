@@ -29,7 +29,7 @@ object SgaApiApp extends cask.Main {
 
   // Composición de Rutas
   val allRoutes = Seq(
-    new PersonasRoutes(entidadRepo),
+    new PersonasRoutes(entidadRepo, etiquetaRepo),
     new EntidadesRoutes(entidadRepo),
     new InstitucionesRoutes(institucionRepo, entidadRepo),
     new RolesRoutes(rolesRepo),

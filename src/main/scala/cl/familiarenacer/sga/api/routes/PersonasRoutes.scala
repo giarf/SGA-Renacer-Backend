@@ -2,14 +2,14 @@ package cl.familiarenacer.sga.api.routes
 
 import cl.familiarenacer.sga.api.ApiSupport
 import cl.familiarenacer.sga.modelos._
-import cl.familiarenacer.sga.repositorios.EntidadRepository
+import cl.familiarenacer.sga.repositorios.{EntidadRepository, EtiquetaRepository}
 import io.undertow.server.handlers.form.{FormData, FormDataParser, FormParserFactory}
 import play.api.libs.json._
 import java.time.LocalDate
 import java.nio.file.{Files, Path, Paths, StandardCopyOption}
 import scala.jdk.CollectionConverters._
 
-class PersonasRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
+class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepository)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
 
   // ===== DTOs =====
 
@@ -51,7 +51,8 @@ class PersonasRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Context
     genero: Option[String],
     ocupacion: Option[String] = None,
     fechaNacimiento: Option[LocalDate] = None,
-    fotoUrl: Option[String] = None
+    fotoUrl: Option[String] = None,
+    etiquetas: List[Etiqueta] = Nil
   )
   implicit val personaCompletaFormat: OFormat[PersonaCompletaResponse] = Json.format[PersonaCompletaResponse]
 
@@ -102,7 +103,8 @@ class PersonasRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Context
           anotaciones = entidad.anotaciones, sector = entidad.sector,
           nombres = persona.nombres, apellidos = persona.apellidos,
           genero = persona.genero, ocupacion = persona.ocupacion,
-          fechaNacimiento = persona.fechaNacimiento, fotoUrl = persona.fotoUrl
+          fechaNacimiento = persona.fechaNacimiento, fotoUrl = persona.fotoUrl,
+          etiquetas = etiquetaRepo.etiquetasPorEntidad(entidad.id)
         )
       }
       respond(Json.toJson(resultado))
@@ -126,7 +128,8 @@ class PersonasRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Context
             anotaciones = entidad.anotaciones, sector = entidad.sector,
             nombres = persona.nombres, apellidos = persona.apellidos,
             genero = persona.genero, ocupacion = persona.ocupacion,
-            fechaNacimiento = persona.fechaNacimiento, fotoUrl = persona.fotoUrl
+            fechaNacimiento = persona.fechaNacimiento, fotoUrl = persona.fotoUrl,
+            etiquetas = etiquetaRepo.etiquetasPorEntidad(entidad.id)
           )
           respond(Json.toJson(response))
         case None =>

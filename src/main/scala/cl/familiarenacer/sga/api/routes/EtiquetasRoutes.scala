@@ -115,8 +115,8 @@ class EtiquetasRoutes(etiquetaRepo: EtiquetaRepository)(implicit cc: castor.Cont
   def asignarEtiquetaMasiva(etiquetaId: Int, request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[EntidadesMasivasRequest]
-      etiquetaRepo.asignarEtiquetaMasiva(etiquetaId, body.entidadIds)
-      respond(Json.obj("mensaje" -> "Etiqueta asignada a entidades"))
+      val asignadas = etiquetaRepo.asignarEtiquetaMasiva(etiquetaId, body.entidadIds)
+      respond(Json.obj("mensaje" -> "Etiqueta asignada a entidades", "asignadas" -> asignadas))
     } catch {
       case e: Exception =>
         e.printStackTrace()
@@ -128,8 +128,8 @@ class EtiquetasRoutes(etiquetaRepo: EtiquetaRepository)(implicit cc: castor.Cont
   def quitarEtiquetaMasiva(etiquetaId: Int, request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[EntidadesMasivasRequest]
-      etiquetaRepo.quitarEtiquetaMasiva(etiquetaId, body.entidadIds)
-      respond(Json.obj("mensaje" -> "Etiqueta quitada de entidades"))
+      val quitadas = etiquetaRepo.quitarEtiquetaMasiva(etiquetaId, body.entidadIds)
+      respond(Json.obj("mensaje" -> "Etiqueta quitada de entidades", "quitadas" -> quitadas))
     } catch {
       case e: Exception =>
         e.printStackTrace()
