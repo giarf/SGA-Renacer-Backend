@@ -53,8 +53,10 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val conn = DriverManager.getConnection(s"jdbc:postgresql://$host:$port/$database", user, password)
     try {
       val statement = conn.createStatement()
-      try statement.execute("ALTER TABLE persona_natural ADD COLUMN IF NOT EXISTS foto_url TEXT")
-      finally statement.close()
+      try {
+        statement.execute("ALTER TABLE persona_natural ADD COLUMN IF NOT EXISTS foto_url TEXT")
+        statement.execute("ALTER TABLE entidad ADD COLUMN IF NOT EXISTS region TEXT")
+      } finally statement.close()
     } finally {
       conn.close()
     }
@@ -114,6 +116,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             _.correo -> lift(entidad.correo),
             _.direccion -> lift(entidad.direccion),
             _.comuna -> lift(entidad.comuna),
+            _.region -> lift(entidad.region),
             _.redSocial -> lift(entidad.redSocial),
             _.gestorId -> lift(entidad.gestorId),
             _.anotaciones -> lift(entidad.anotaciones),

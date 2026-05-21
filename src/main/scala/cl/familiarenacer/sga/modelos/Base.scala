@@ -24,6 +24,7 @@ case class Entidad(
   correo: Option[String],
   direccion: Option[String],
   comuna: Option[String],
+  region: Option[String] = None,
   redSocial: Option[String] = None,
   gestorId: Option[Int] = None,
   anotaciones: Option[String] = None,
@@ -79,6 +80,17 @@ case class Etiqueta(
 case class EntidadEtiqueta(
   entidadId: Int,
   etiquetaId: Int
+)
+
+case class Region(
+  id: Int,
+  nombre: String
+)
+
+case class Comuna(
+  id: Int,
+  regionId: Int,
+  nombre: String
 )
 
 /**

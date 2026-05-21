@@ -21,6 +21,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    region: Option[String] = None,
     redSocial: Option[String] = None,
     gestorId: Option[Int] = None,
     anotaciones: Option[String] = None,
@@ -42,6 +43,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    region: Option[String] = None,
     redSocial: Option[String] = None,
     gestorId: Option[Int] = None,
     anotaciones: Option[String] = None,
@@ -62,6 +64,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    region: Option[String] = None,
     redSocial: Option[String] = None,
     gestorId: Option[Int] = None,
     anotaciones: Option[String] = None,
@@ -98,7 +101,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
         PersonaCompletaResponse(
           id = entidad.id, rut = entidad.rut, tipoEntidad = entidad.tipoEntidad,
           telefono = entidad.telefono, correo = entidad.correo,
-          direccion = entidad.direccion, comuna = entidad.comuna,
+          direccion = entidad.direccion, comuna = entidad.comuna, region = entidad.region,
           redSocial = entidad.redSocial, gestorId = entidad.gestorId,
           anotaciones = entidad.anotaciones, sector = entidad.sector,
           nombres = persona.nombres, apellidos = persona.apellidos,
@@ -123,7 +126,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
           val response = PersonaCompletaResponse(
             id = entidad.id, rut = entidad.rut, tipoEntidad = entidad.tipoEntidad,
             telefono = entidad.telefono, correo = entidad.correo,
-            direccion = entidad.direccion, comuna = entidad.comuna,
+            direccion = entidad.direccion, comuna = entidad.comuna, region = entidad.region,
             redSocial = entidad.redSocial, gestorId = entidad.gestorId,
             anotaciones = entidad.anotaciones, sector = entidad.sector,
             nombres = persona.nombres, apellidos = persona.apellidos,
@@ -159,7 +162,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
           val nuevaEntidad = Entidad(
             id = 0, rut = body.rut, tipoEntidad = Some("Persona"),
             telefono = body.telefono, correo = body.correo,
-            direccion = body.direccion, comuna = body.comuna,
+            direccion = body.direccion, comuna = body.comuna, region = body.region,
             redSocial = body.redSocial, gestorId = body.gestorId,
             anotaciones = body.anotaciones, sector = body.sector,
             createdAt = Some(java.time.LocalDateTime.now())
@@ -257,7 +260,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
       val entidad = Entidad(
         id = id, rut = body.rut, tipoEntidad = Some(body.tipoEntidad),
         telefono = body.telefono, correo = body.correo,
-        direccion = body.direccion, comuna = body.comuna,
+        direccion = body.direccion, comuna = body.comuna, region = body.region,
         redSocial = body.redSocial, gestorId = body.gestorId,
         anotaciones = body.anotaciones, sector = body.sector,
         createdAt = None
@@ -313,6 +316,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
         correo = formValue(formData, "correo"),
         direccion = formValue(formData, "direccion"),
         comuna = formValue(formData, "comuna"),
+        region = formValue(formData, "region"),
         redSocial = formValue(formData, "redSocial"),
         gestorId = formValue(formData, "gestorId").map(_.toInt),
         anotaciones = formValue(formData, "anotaciones"),

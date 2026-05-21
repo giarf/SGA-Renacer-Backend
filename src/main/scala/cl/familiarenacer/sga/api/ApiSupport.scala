@@ -49,6 +49,8 @@ trait ApiSupport {
   implicit val familiaMiembroDetalleFormat: OFormat[FamiliaMiembroDetalle] = Json.using[Json.WithDefaultValues].format[FamiliaMiembroDetalle]
   implicit val etiquetaFormat: OFormat[Etiqueta] = Json.using[Json.WithDefaultValues].format[Etiqueta]
   implicit val entidadEtiquetaFormat: OFormat[EntidadEtiqueta] = Json.using[Json.WithDefaultValues].format[EntidadEtiqueta]
+  implicit val regionFormat: OFormat[Region] = Json.format[Region]
+  implicit val comunaFormat: OFormat[Comuna] = Json.format[Comuna]
   implicit val ingresoFormat: OFormat[IngresoRecurso] = Json.using[Json.WithDefaultValues].format[IngresoRecurso]
   implicit val donacionFormat: OFormat[IngresoDonacion] = Json.using[Json.WithDefaultValues].format[IngresoDonacion]
   implicit val pecuniarioFormat: OFormat[IngresoPecuniario] = Json.using[Json.WithDefaultValues].format[IngresoPecuniario]

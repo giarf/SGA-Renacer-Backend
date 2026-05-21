@@ -18,6 +18,7 @@ class EntidadesRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Contex
     correo: Option[String],
     direccion: Option[String],
     comuna: Option[String],
+    region: Option[String] = None,
     redSocial: Option[String] = None,
     gestorId: Option[Int] = None,
     anotaciones: Option[String] = None,
@@ -53,7 +54,7 @@ class EntidadesRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Contex
       val entidad = Entidad(
         id = body.id, rut = body.rut, tipoEntidad = body.tipoEntidad,
         telefono = body.telefono, correo = body.correo,
-        direccion = body.direccion, comuna = body.comuna,
+        direccion = body.direccion, comuna = body.comuna, region = body.region,
         redSocial = body.redSocial, gestorId = body.gestorId,
         anotaciones = body.anotaciones, sector = body.sector,
         createdAt = None
