@@ -212,6 +212,13 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         val pecuniario = ctx.run(query[EgresoPecuniario].filter(_.egresoId == lift(id))).headOption
         val detallesAsociados = ctx.run(query[DetalleEgresoRecurso].filter(_.egresoId == lift(Option(id))))
 
+        detallesAsociados.foreach { detalle =>
+          val itemId = detalle.itemCatalogoId.getOrElse(throw new IllegalArgumentException("Detalle sin itemCatalogoId"))
+          if (existeIngresoPosterior(itemId, egreso.fecha, id)) {
+            throw new IllegalArgumentException(s"No se puede anular el egreso porque el item $itemId ya tuvo ingresos posteriores")
+          }
+        }
+
         pecuniario.foreach { pec =>
           pec.cuentaOrigenId.foreach(cuentaId => ajustarSaldoCuenta(cuentaId, egreso.montoTotal.getOrElse(BigDecimal(0))))
         }
