@@ -17,7 +17,8 @@ case class PersonaNatural(
   apellidos: Option[String],
   genero: Option[String],
   ocupacion: Option[String] = None,
-  fechaNacimiento: Option[LocalDate] = None
+  fechaNacimiento: Option[LocalDate] = None,
+  fotoUrl: Option[String] = None
 )
 
 /**

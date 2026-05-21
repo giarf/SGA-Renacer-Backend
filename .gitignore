@@ -40,3 +40,7 @@ Thumbs.db
 ### --- Boletas locales ---
 boletas/*
 !boletas/.gitkeep
+
+### --- Fotos locales ---
+personas-fotos/*
+!personas-fotos/.gitkeep

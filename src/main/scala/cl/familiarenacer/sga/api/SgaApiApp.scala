@@ -14,6 +14,7 @@ object SgaApiApp extends cask.Main {
 
   // Inicialización de Repositorios
   val entidadRepo = new EntidadRepository(DB.ctx)
+  entidadRepo.asegurarColumnasFotosPersonas()
   val donacionRepo = new DonacionRepository(DB.ctx)
   val inventarioRepo = new InventarioRepository(DB.ctx)
   val institucionRepo = new InstitucionRepository(DB.ctx)

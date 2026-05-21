@@ -2,6 +2,7 @@ package cl.familiarenacer.sga.repositorios
 
 import cl.familiarenacer.sga.modelos.{Entidad, EntidadResumen, Institucion, PersonaNatural}
 import io.getquill._
+import java.sql.DriverManager
 
 /**
  * Repositorio para manejar la persistencia de Entidades y Personas.
@@ -41,6 +42,30 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       // Retornamos el ID generado.
       entidadId.toLong
     }
+  }
+
+  def asegurarColumnasFotosPersonas(): Unit = {
+    val host = sys.env.getOrElse("DATABASE_HOST", "localhost")
+    val port = sys.env.getOrElse("DATABASE_PORT", "5432")
+    val database = sys.env.getOrElse("DATABASE_NAME", "sga_renacer")
+    val user = sys.env.getOrElse("DATABASE_USER", "postgres")
+    val password = sys.env.getOrElse("DATABASE_PASSWORD", "")
+    val conn = DriverManager.getConnection(s"jdbc:postgresql://$host:$port/$database", user, password)
+    try {
+      val statement = conn.createStatement()
+      try statement.execute("ALTER TABLE persona_natural ADD COLUMN IF NOT EXISTS foto_url TEXT")
+      finally statement.close()
+    } finally {
+      conn.close()
+    }
+  }
+
+  def actualizarFotoPersona(entidadId: Int, fotoUrl: Option[String]): Long = {
+    ctx.run(
+      query[PersonaNatural]
+        .filter(_.entidadId == lift(entidadId))
+        .update(_.fotoUrl -> lift(fotoUrl))
+    )
   }
 
   /**
