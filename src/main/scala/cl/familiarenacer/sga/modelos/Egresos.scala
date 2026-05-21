@@ -14,7 +14,8 @@ case class EgresoRecurso(
   responsableInternoId: Option[Int] = None,
   anotaciones: Option[String] = None,
   destinoEntidadId: Option[Int] = None,
-  propositoEspecifico: Option[String] = None
+  propositoEspecifico: Option[String] = None,
+  estado: Option[String] = None
 )
 
 /**

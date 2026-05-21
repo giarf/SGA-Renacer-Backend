@@ -55,6 +55,7 @@ trait ApiSupport {
   implicit val compraFormat: OFormat[IngresoCompra] = Json.using[Json.WithDefaultValues].format[IngresoCompra]
   implicit val subvencionFormat: OFormat[IngresoSubvencion] = Json.using[Json.WithDefaultValues].format[IngresoSubvencion]
   implicit val detalleIngresoFormat: OFormat[DetalleIngresoRecurso] = Json.using[Json.WithDefaultValues].format[DetalleIngresoRecurso]
+  implicit val ingresoDetalleFormat: OFormat[IngresoDetalle] = Json.format[IngresoDetalle]
   implicit val egresoFormat: OFormat[EgresoRecurso] = OFormat(
     (
       (__ \ "id").readWithDefault[Int](0) and
@@ -67,7 +68,8 @@ trait ApiSupport {
       (__ \ "responsableInternoId").readNullable[Int] and
       (__ \ "anotaciones").readNullable[String] and
       (__ \ "destinoEntidadId").readNullable[Int] and
-      (__ \ "propositoEspecifico").readNullable[String]
+      (__ \ "propositoEspecifico").readNullable[String] and
+      (__ \ "estado").readNullable[String]
     )(EgresoRecurso.apply _),
     Json.writes[EgresoRecurso]
   )

@@ -1,7 +1,8 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{CuentaFinanciera, DetalleEgresoRecurso, EgresoDetalle, EgresoPecuniario, EgresoRecurso, ItemCatalogo}
+import cl.familiarenacer.sga.modelos.{CuentaFinanciera, DetalleEgresoRecurso, DetalleIngresoRecurso, EgresoDetalle, EgresoPecuniario, EgresoRecurso, IngresoRecurso, ItemCatalogo}
 import io.getquill._
+import java.sql.DriverManager
 
 /**
  * Repositorio para manejar la persistencia de Egresos.
@@ -9,6 +10,8 @@ import io.getquill._
  */
 class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
+
+  ensureSchema()
 
   def crearEgreso(
     egreso: EgresoRecurso,
@@ -25,9 +28,10 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           _.tipoEgreso -> lift(egreso.tipoEgreso),
           _.montoTotal -> lift(Option(montoTotal)),
           _.responsableInternoId -> lift(egreso.responsableInternoId),
-          _.anotaciones -> lift(egreso.anotaciones),
-          _.destinoEntidadId -> lift(egreso.destinoEntidadId),
-          _.propositoEspecifico -> lift(egreso.propositoEspecifico)
+            _.anotaciones -> lift(egreso.anotaciones),
+            _.destinoEntidadId -> lift(egreso.destinoEntidadId),
+            _.propositoEspecifico -> lift(egreso.propositoEspecifico),
+            _.estado -> lift(egreso.estado.orElse(Some("Cerrado")))
         ).returningGenerated(_.id)
       )
 
@@ -143,9 +147,82 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             _.responsableInternoId -> lift(egreso.responsableInternoId.orElse(actual.responsableInternoId)),
             _.anotaciones -> lift(egreso.anotaciones.orElse(actual.anotaciones)),
             _.destinoEntidadId -> lift(egreso.destinoEntidadId.orElse(actual.destinoEntidadId)),
-            _.propositoEspecifico -> lift(egreso.propositoEspecifico.orElse(actual.propositoEspecifico))
+            _.propositoEspecifico -> lift(egreso.propositoEspecifico.orElse(actual.propositoEspecifico)),
+            _.estado -> lift(egreso.estado.orElse(actual.estado))
           )
       )
+    }
+  }
+
+  def actualizarEgresoConDetalles(
+    id: Int,
+    egreso: EgresoRecurso,
+    pecuniario: Option[EgresoPecuniario],
+    detalles: List[DetalleEgresoRecurso]
+  ): Long = {
+    ctx.transaction {
+      val filas = actualizarEgreso(id, egreso, pecuniario)
+      if (detalles.nonEmpty) {
+        val actual = ctx.run(query[EgresoRecurso].filter(_.id == lift(id))).headOption.getOrElse(
+          throw new NoSuchElementException(s"Egreso con ID $id no encontrado")
+        )
+        if (actual.estado.exists(_.equalsIgnoreCase("Anulado"))) {
+          throw new IllegalArgumentException("No se puede editar un egreso anulado")
+        }
+
+        val detallesActuales = ctx.run(query[DetalleEgresoRecurso].filter(_.egresoId == lift(Option(id))))
+        detallesActuales.foreach { detalleActual =>
+          val itemId = detalleActual.itemCatalogoId.getOrElse(throw new IllegalArgumentException("Detalle actual sin itemCatalogoId"))
+          if (existeIngresoPosterior(itemId, actual.fecha, id)) {
+            throw new IllegalArgumentException(s"No se puede editar el item $itemId porque tiene ingresos posteriores que recalcularon PPP")
+          }
+        }
+
+        detallesActuales.foreach(revertirInventarioPorDetalle)
+        ctx.run(query[DetalleEgresoRecurso].filter(_.egresoId == lift(Option(id))).delete)
+
+        val detallesConPrecio = completarDetallesConPPP(detalles)
+        detallesConPrecio.foreach { detalle =>
+          descontarInventarioPorDetalle(detalle)
+          ctx.run(
+            query[DetalleEgresoRecurso].insert(
+              _.egresoId -> lift(Option(id)),
+              _.itemCatalogoId -> lift(detalle.itemCatalogoId),
+              _.cantidad -> lift(detalle.cantidad),
+              _.precioUnitarioPpp -> lift(detalle.precioUnitarioPpp)
+            )
+          )
+        }
+
+        val montoNuevo = calcularMontoTotal(egreso, pecuniario, detallesConPrecio)
+        ctx.run(query[EgresoRecurso].filter(_.id == lift(id)).update(_.montoTotal -> lift(Option(montoNuevo))))
+      }
+      filas
+    }
+  }
+
+  def anularEgreso(id: Int): Boolean = {
+    ctx.transaction {
+      val egresoOpt = ctx.run(query[EgresoRecurso].filter(_.id == lift(id))).headOption
+      egresoOpt.exists { egreso =>
+        if (egreso.estado.exists(_.equalsIgnoreCase("Anulado"))) {
+          throw new IllegalArgumentException("El egreso ya está anulado")
+        }
+
+        val pecuniario = ctx.run(query[EgresoPecuniario].filter(_.egresoId == lift(id))).headOption
+        val detallesAsociados = ctx.run(query[DetalleEgresoRecurso].filter(_.egresoId == lift(Option(id))))
+
+        pecuniario.foreach { pec =>
+          pec.cuentaOrigenId.foreach(cuentaId => ajustarSaldoCuenta(cuentaId, egreso.montoTotal.getOrElse(BigDecimal(0))))
+        }
+        detallesAsociados.foreach(revertirInventarioPorDetalle)
+
+        ctx.run(
+          query[EgresoRecurso]
+            .filter(_.id == lift(id))
+            .update(_.estado -> lift(Option("Anulado")))
+        ) > 0
+      }
     }
   }
 
@@ -259,6 +336,35 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     if (filas == 0) {
       throw new IllegalArgumentException(s"Cuenta financiera con ID $cuentaId no existe")
     }
+  }
+
+  private def existeIngresoPosterior(itemId: Int, fechaEgreso: Option[java.time.LocalDate], egresoId: Int): Boolean = {
+    val conn = abrirConexion()
+    try {
+      val ps = conn.prepareStatement(
+        """
+          SELECT 1
+          FROM detalle_ingreso_recurso dir
+          JOIN ingreso_recurso ir ON ir.id = dir.ingreso_id
+          JOIN egreso_recurso er_actual ON er_actual.id = ?
+          WHERE dir.item_catalogo_id = ?
+            AND COALESCE(ir.estado, 'Cerrado') <> 'Anulado'
+            AND (
+              ir.fecha > er_actual.fecha
+              OR (ir.fecha = er_actual.fecha AND COALESCE(ir.created_at, ir.fecha::timestamp) > COALESCE(er_actual.created_at, er_actual.fecha::timestamp))
+            )
+          LIMIT 1
+        """
+      )
+      ps.setInt(1, egresoId)
+      ps.setInt(2, itemId)
+      val rs = ps.executeQuery()
+      try rs.next()
+      finally {
+        rs.close()
+        ps.close()
+      }
+    } finally conn.close()
   }
 
   private def descontarInventarioPorDetalle(detalle: DetalleEgresoRecurso): Unit = {
@@ -390,5 +496,23 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         precioUnitarioPpp = Some(precio)
       )
     }
+  }
+
+  private def ensureSchema(): Unit = {
+    val conn = abrirConexion()
+    try {
+      val statement = conn.createStatement()
+      try statement.execute("ALTER TABLE egreso_recurso ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'Cerrado'")
+      finally statement.close()
+    } finally conn.close()
+  }
+
+  private def abrirConexion(): java.sql.Connection = {
+    val host = sys.env.getOrElse("DATABASE_HOST", "localhost")
+    val port = sys.env.getOrElse("DATABASE_PORT", "5432")
+    val database = sys.env.getOrElse("DATABASE_NAME", "sga_renacer")
+    val user = sys.env.getOrElse("DATABASE_USER", "postgres")
+    val password = sys.env.getOrElse("DATABASE_PASSWORD", "")
+    DriverManager.getConnection(s"jdbc:postgresql://$host:$port/$database", user, password)
   }
 }

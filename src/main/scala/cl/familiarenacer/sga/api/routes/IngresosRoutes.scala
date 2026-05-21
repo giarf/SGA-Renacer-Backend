@@ -57,10 +57,25 @@ class IngresosRoutes(
   )
   implicit val registrarSubvencionFormat: OFormat[RegistrarSubvencionRequest] = Json.format[RegistrarSubvencionRequest]
 
+  case class ActualizarIngresoRequest(
+    ingreso: IngresoRecurso,
+    donacion: Option[IngresoDonacion] = None,
+    compra: Option[IngresoCompra] = None,
+    subvencion: Option[IngresoSubvencion] = None,
+    detalles: List[DetalleIngresoRecurso] = Nil
+  )
+  implicit val actualizarIngresoFormat: OFormat[ActualizarIngresoRequest] = Json.using[Json.WithDefaultValues].format[ActualizarIngresoRequest]
+
   // ===== ENDPOINTS =====
 
   @cask.options("/api/ingresos")
   def ingresosOptions() = corsOptions()
+
+  @cask.options("/api/ingresos/:id")
+  def ingresoByIdOptions(id: Int) = corsOptions()
+
+  @cask.options("/api/ingresos/:id/anular")
+  def ingresoAnularOptions(id: Int) = corsOptions()
 
   @cask.get("/api/ingresos")
   def listarIngresos() = {
@@ -68,6 +83,51 @@ class IngresosRoutes(
       val ingresos = donacionRepo.listarIngresosConTipo()
       respond(Json.toJson(ingresos))
     } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.get("/api/ingresos/:id")
+  def obtenerIngreso(id: Int) = {
+    try {
+      donacionRepo.obtenerIngresoDetalle(id) match {
+        case Some(detalle) => respond(Json.toJson(detalle))
+        case None => respond(Json.obj("error" -> s"Ingreso con ID $id no encontrado"), 404)
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.put("/api/ingresos/:id")
+  def actualizarIngreso(id: Int, request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[ActualizarIngresoRequest]
+      val filas = donacionRepo.actualizarIngreso(id, body.ingreso, body.donacion, body.compra, body.subvencion, body.detalles)
+      if (filas > 0) respond(Json.obj("mensaje" -> "Ingreso actualizado exitosamente"))
+      else respond(Json.obj("error" -> s"Ingreso con ID $id no encontrado"), 404)
+    } catch {
+      case e: NoSuchElementException => respond(Json.obj("error" -> e.getMessage), 404)
+      case e: IllegalArgumentException => respond(Json.obj("error" -> e.getMessage), 400)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.post("/api/ingresos/:id/anular")
+  def anularIngreso(id: Int) = {
+    try {
+      val anulado = donacionRepo.anularIngreso(id)
+      if (anulado) respond(Json.obj("mensaje" -> "Ingreso anulado exitosamente"))
+      else respond(Json.obj("error" -> s"Ingreso con ID $id no encontrado"), 404)
+    } catch {
+      case e: NoSuchElementException => respond(Json.obj("error" -> e.getMessage), 404)
+      case e: IllegalArgumentException => respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)

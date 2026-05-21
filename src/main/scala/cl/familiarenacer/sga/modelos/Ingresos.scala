@@ -101,3 +101,12 @@ case class DetalleIngresoRecurso(
   cantidad: Option[BigDecimal] = None,
   precioUnitarioIngreso: Option[BigDecimal] = None
 )
+
+case class IngresoDetalle(
+  ingreso: IngresoRecurso,
+  donacion: Option[IngresoDonacion],
+  compra: Option[IngresoCompra],
+  subvencion: Option[IngresoSubvencion],
+  pecuniario: Option[IngresoPecuniario],
+  detalles: List[DetalleIngresoRecurso]
+)

@@ -1,7 +1,8 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo, EgresoRecurso, EgresoPecuniario}
+import cl.familiarenacer.sga.modelos.{IngresoDetalle, IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, DetalleEgresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo, EgresoRecurso, EgresoPecuniario}
 import io.getquill._
+import java.sql.DriverManager
 
 /**
  * Repositorio especializado en la gestión de Ingresos (Donaciones, Compras, Subvenciones, Pecuniarios).
@@ -11,6 +12,8 @@ import io.getquill._
  */
 class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
+
+  asegurarColumnasEgresos()
 
   /**
    * Registra una Donación de Dinero de manera atómica.
@@ -278,6 +281,130 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     ).headOption
   }
 
+  def obtenerIngresoDetalle(id: Int): Option[IngresoDetalle] = {
+    ctx.run(query[IngresoRecurso].filter(_.id == lift(id))).headOption.map { ingreso =>
+      IngresoDetalle(
+        ingreso = ingreso,
+        donacion = ctx.run(query[IngresoDonacion].filter(_.ingresoId == lift(Option(id)))).headOption,
+        compra = ctx.run(query[IngresoCompra].filter(_.ingresoId == lift(Option(id)))).headOption,
+        subvencion = ctx.run(query[IngresoSubvencion].filter(_.ingresoId == lift(Option(id)))).headOption,
+        pecuniario = ctx.run(query[IngresoPecuniario].filter(_.ingresoId == lift(Option(id)))).headOption,
+        detalles = ctx.run(query[DetalleIngresoRecurso].filter(_.ingresoId == lift(Option(id))))
+      )
+    }
+  }
+
+  def actualizarIngreso(
+    id: Int,
+    ingreso: IngresoRecurso,
+    donacion: Option[IngresoDonacion],
+    compra: Option[IngresoCompra],
+    subvencion: Option[IngresoSubvencion],
+    detalles: List[DetalleIngresoRecurso]
+  ): Long = {
+    ctx.transaction {
+      val actual = ctx.run(query[IngresoRecurso].filter(_.id == lift(id))).headOption.getOrElse(
+        throw new NoSuchElementException(s"Ingreso con ID $id no encontrado")
+      )
+      if (actual.estado.exists(_.equalsIgnoreCase("Anulado"))) {
+        throw new IllegalArgumentException("No se puede editar un ingreso anulado")
+      }
+
+      val montoNuevo = if (detalles.nonEmpty) {
+        detalles.map(d => d.cantidad.getOrElse(BigDecimal(0)) * d.precioUnitarioIngreso.getOrElse(BigDecimal(0))).sum
+      } else ingreso.montoTotal.orElse(actual.montoTotal).getOrElse(BigDecimal(0))
+
+      val filas = ctx.run(
+        query[IngresoRecurso]
+          .filter(_.id == lift(id))
+          .update(
+            _.origenEntidadId -> lift(ingreso.origenEntidadId.orElse(actual.origenEntidadId)),
+            _.responsableInternoId -> lift(ingreso.responsableInternoId.orElse(actual.responsableInternoId)),
+            _.solicitudId -> lift(ingreso.solicitudId.orElse(actual.solicitudId)),
+            _.fecha -> lift(ingreso.fecha.orElse(actual.fecha)),
+            _.tipoTransaccion -> lift(ingreso.tipoTransaccion.orElse(actual.tipoTransaccion)),
+            _.montoTotal -> lift(Option(montoNuevo)),
+            _.estado -> lift(ingreso.estado.orElse(actual.estado)),
+            _.anotaciones -> lift(ingreso.anotaciones.orElse(actual.anotaciones)),
+            _.creadoPorId -> lift(ingreso.creadoPorId.orElse(actual.creadoPorId))
+          )
+      )
+
+      donacion.foreach { d =>
+        ctx.run(query[IngresoDonacion].filter(_.ingresoId == lift(Option(id))).update(
+          _.propositoEspecifico -> lift(d.propositoEspecifico),
+          _.gestorId -> lift(d.gestorId)
+        ))
+      }
+      compra.foreach { c =>
+        ctx.run(query[IngresoCompra].filter(_.ingresoId == lift(Option(id))).update(
+          _.cuentaOrigenId -> lift(c.cuentaOrigenId),
+          _.numeroFacturaBoleta -> lift(c.numeroFacturaBoleta),
+          _.montoNeto -> lift(c.montoNeto),
+          _.montoIva -> lift(c.montoIva)
+        ))
+      }
+      subvencion.foreach { s =>
+        ctx.run(query[IngresoSubvencion].filter(_.ingresoId == lift(Option(id))).update(
+          _.nombreProyecto -> lift(s.nombreProyecto),
+          _.fechaRendicionLimite -> lift(s.fechaRendicionLimite)
+        ))
+      }
+
+      if (detalles.nonEmpty) {
+        val detallesActuales = ctx.run(query[DetalleIngresoRecurso].filter(_.ingresoId == lift(Option(id))))
+        detallesActuales.foreach { detalleActual =>
+          val itemId = detalleActual.itemCatalogoId.getOrElse(throw new IllegalArgumentException("Detalle actual sin itemCatalogoId"))
+          if (existeEgresoPosterior(itemId, actual.fecha, id)) {
+            throw new IllegalArgumentException(s"No se puede editar el item $itemId porque tiene egresos posteriores valorizados por PPP")
+          }
+          aplicarDiferenciaIngreso(detalleActual, revertir = true)
+        }
+        ctx.run(query[DetalleIngresoRecurso].filter(_.ingresoId == lift(Option(id))).delete)
+
+        detalles.foreach { detalle =>
+          val normalizado = detalle.copy(ingresoId = Some(id))
+          aplicarDiferenciaIngreso(normalizado, revertir = false)
+          ctx.run(query[DetalleIngresoRecurso].insert(
+            _.ingresoId -> lift(Option(id)),
+            _.itemCatalogoId -> lift(normalizado.itemCatalogoId),
+            _.cantidad -> lift(normalizado.cantidad),
+            _.precioUnitarioIngreso -> lift(normalizado.precioUnitarioIngreso)
+          ))
+        }
+      }
+
+      filas
+    }
+  }
+
+  def anularIngreso(id: Int): Boolean = {
+    ctx.transaction {
+      val detalle = obtenerIngresoDetalle(id).getOrElse(throw new NoSuchElementException(s"Ingreso con ID $id no encontrado"))
+      if (detalle.ingreso.estado.exists(_.equalsIgnoreCase("Anulado"))) {
+        throw new IllegalArgumentException("El ingreso ya está anulado")
+      }
+
+      detalle.detalles.foreach { d =>
+        val itemId = d.itemCatalogoId.getOrElse(throw new IllegalArgumentException("Detalle sin itemCatalogoId"))
+        if (existeEgresoPosterior(itemId, detalle.ingreso.fecha, id)) {
+          throw new IllegalArgumentException(s"No se puede anular el ingreso porque el item $itemId ya tuvo egresos posteriores")
+        }
+      }
+
+      detalle.pecuniario.foreach { pec =>
+        pec.cuentaDestinoId.foreach(cuentaId => ajustarSaldoCuenta(cuentaId, -detalle.ingreso.montoTotal.getOrElse(BigDecimal(0))))
+      }
+      detalle.compra.foreach { compra =>
+        compra.cuentaOrigenId.foreach(cuentaId => ajustarSaldoCuenta(cuentaId, detalle.ingreso.montoTotal.getOrElse(BigDecimal(0))))
+        anularEgresoAutomaticoCompra(id)
+      }
+      detalle.detalles.foreach(d => aplicarDiferenciaIngreso(d, revertir = true))
+
+      ctx.run(query[IngresoRecurso].filter(_.id == lift(id)).update(_.estado -> lift(Option("Anulado")))) > 0
+    }
+  }
+
   /**
    * Elimina un ingreso.
    * NOTA: Esto debería eliminar en cascada los detalles asociados si están configurados en la DB.
@@ -286,6 +413,94 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     ctx.run(
       query[IngresoRecurso].filter(_.id == lift(id)).delete
     ) > 0
+  }
+
+  private def ajustarSaldoCuenta(cuentaId: Int, delta: BigDecimal): Unit = {
+    val cero = BigDecimal(0)
+    val filas = ctx.run(
+      query[CuentaFinanciera]
+        .filter(_.id == lift(cuentaId))
+        .update(c => c.saldoActual -> Option(c.saldoActual.getOrElse(lift(cero)) + lift(delta)))
+    )
+    if (filas == 0) throw new IllegalArgumentException(s"Cuenta financiera con ID $cuentaId no existe")
+  }
+
+  private def aplicarDiferenciaIngreso(detalle: DetalleIngresoRecurso, revertir: Boolean): Unit = {
+    val itemId = detalle.itemCatalogoId.getOrElse(throw new IllegalArgumentException("Detalle sin itemCatalogoId"))
+    val cantidad = detalle.cantidad.getOrElse(BigDecimal(0))
+    val precio = detalle.precioUnitarioIngreso.getOrElse(BigDecimal(0))
+    val signo = if (revertir) BigDecimal(-1) else BigDecimal(1)
+
+    val itemActual = ctx.run(query[ItemCatalogo].filter(_.id == lift(itemId)).forUpdate).headOption.getOrElse(
+      throw new IllegalArgumentException(s"Item con ID $itemId no existe")
+    )
+    val stockNuevo = itemActual.stockActual.getOrElse(BigDecimal(0)) + (cantidad * signo)
+    val valorNuevoBruto = itemActual.valorTotalStock.getOrElse(BigDecimal(0)) + (cantidad * precio * signo)
+    val valorNuevo = if (valorNuevoBruto.abs <= BigDecimal("0.0001")) BigDecimal(0) else valorNuevoBruto
+    if (stockNuevo < 0 || valorNuevo < 0) throw new IllegalArgumentException(s"El inventario del item $itemId quedaría negativo")
+    val pppNuevo = if (stockNuevo > 0) (valorNuevo / stockNuevo).setScale(4, BigDecimal.RoundingMode.HALF_UP) else BigDecimal(0)
+    ctx.run(query[ItemCatalogo].filter(_.id == lift(itemId)).update(
+      _.stockActual -> lift(Option(stockNuevo)),
+      _.valorTotalStock -> lift(Option(valorNuevo)),
+      _.precioPromedioPonderado -> lift(Option(pppNuevo))
+    ))
+  }
+
+  private def existeEgresoPosterior(itemId: Int, fechaIngreso: Option[java.time.LocalDate], ingresoId: Int): Boolean = {
+    val conn = abrirConexion()
+    try {
+      val ps = conn.prepareStatement(
+        """
+          SELECT 1
+          FROM detalle_egreso_recurso der
+          JOIN egreso_recurso er ON er.id = der.egreso_id
+          JOIN ingreso_recurso ir_actual ON ir_actual.id = ?
+          WHERE der.item_catalogo_id = ?
+            AND COALESCE(er.estado, 'Cerrado') <> 'Anulado'
+            AND (
+              er.fecha > ir_actual.fecha
+              OR (er.fecha = ir_actual.fecha AND COALESCE(er.created_at, er.fecha::timestamp) > COALESCE(ir_actual.created_at, ir_actual.fecha::timestamp))
+            )
+          LIMIT 1
+        """
+      )
+      ps.setInt(1, ingresoId)
+      ps.setInt(2, itemId)
+      val rs = ps.executeQuery()
+      try rs.next()
+      finally {
+        rs.close()
+        ps.close()
+      }
+    } finally conn.close()
+  }
+
+  private def anularEgresoAutomaticoCompra(ingresoId: Int): Unit = {
+    val egresos = ctx.run(
+      query[EgresoRecurso]
+        .filter(e => e.propositoEspecifico == lift(Option(s"Compra asociada al ingreso $ingresoId")))
+    )
+    egresos.foreach { egreso =>
+      ctx.run(query[EgresoRecurso].filter(_.id == lift(egreso.id)).update(_.estado -> lift(Option("Anulado"))))
+    }
+  }
+
+  private def abrirConexion(): java.sql.Connection = {
+    val host = sys.env.getOrElse("DATABASE_HOST", "localhost")
+    val port = sys.env.getOrElse("DATABASE_PORT", "5432")
+    val database = sys.env.getOrElse("DATABASE_NAME", "sga_renacer")
+    val user = sys.env.getOrElse("DATABASE_USER", "postgres")
+    val password = sys.env.getOrElse("DATABASE_PASSWORD", "")
+    DriverManager.getConnection(s"jdbc:postgresql://$host:$port/$database", user, password)
+  }
+
+  private def asegurarColumnasEgresos(): Unit = {
+    val conn = abrirConexion()
+    try {
+      val statement = conn.createStatement()
+      try statement.execute("ALTER TABLE egreso_recurso ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'Cerrado'")
+      finally statement.close()
+    } finally conn.close()
   }
 
   private def registrarEgresoPecuniarioPorCompra(

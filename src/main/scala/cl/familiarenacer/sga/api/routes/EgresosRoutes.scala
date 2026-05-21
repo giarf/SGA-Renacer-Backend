@@ -20,7 +20,8 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
 
   case class ActualizarEgresoRequest(
     egreso: EgresoRecurso,
-    pecuniario: Option[EgresoPecuniario] = None
+    pecuniario: Option[EgresoPecuniario] = None,
+    detalles: List[DetalleEgresoRecurso] = Nil
   )
   implicit val actualizarEgresoFormat: OFormat[ActualizarEgresoRequest] = Json.using[Json.WithDefaultValues].format[ActualizarEgresoRequest]
 
@@ -84,7 +85,7 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
   def actualizarEgreso(id: Int, request: cask.Request) = {
     try {
       val body = Json.parse(request.text()).as[ActualizarEgresoRequest]
-      val filas = egresoRepo.actualizarEgreso(id, body.egreso, body.pecuniario)
+      val filas = egresoRepo.actualizarEgresoConDetalles(id, body.egreso, body.pecuniario, body.detalles)
       if (filas > 0) {
         respond(Json.obj("mensaje" -> "Egreso actualizado exitosamente"))
       } else {
@@ -115,6 +116,20 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
     } catch {
       case e: IllegalArgumentException =>
         respond(Json.obj("error" -> e.getMessage), 400)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
+  @cask.post("/api/egresos/:id/anular")
+  def anularEgreso(id: Int) = {
+    try {
+      val anulado = egresoRepo.anularEgreso(id)
+      if (anulado) respond(Json.obj("mensaje" -> "Egreso anulado exitosamente"))
+      else respond(Json.obj("error" -> s"Egreso con ID $id no encontrado"), 404)
+    } catch {
+      case e: IllegalArgumentException => respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>
         e.printStackTrace()
         respond(Json.obj("error" -> e.getMessage), 500)
