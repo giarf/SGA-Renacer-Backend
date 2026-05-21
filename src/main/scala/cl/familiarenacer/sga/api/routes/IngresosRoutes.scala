@@ -368,7 +368,7 @@ class IngresosRoutes(
     }
   }
 
-  private val boletasDir: Path = Paths.get("boletas")
+  private val boletasDir: Path = Paths.get(sys.env.getOrElse("BOLETAS_DIR", "boletas"))
 
   private def respondRawJson(data: JsValue, statusCode: Int): cask.model.Response.Raw = {
     cask.Response(
