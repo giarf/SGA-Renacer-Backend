@@ -66,6 +66,10 @@ class EtiquetaRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     )
   }
 
+  def eliminarEtiqueta(id: Int): Long = {
+    ctx.run(query[Etiqueta].filter(_.id == lift(id)).delete)
+  }
+
   def etiquetasPorEntidad(entidadId: Int): List[Etiqueta] = withConnection { conn =>
     val ps = conn.prepareStatement(
       """

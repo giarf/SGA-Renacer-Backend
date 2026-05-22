@@ -77,6 +77,19 @@ class EtiquetasRoutes(etiquetaRepo: EtiquetaRepository)(implicit cc: castor.Cont
     }
   }
 
+  @cask.delete("/api/etiquetas/:id")
+  def eliminarEtiqueta(id: Int) = {
+    try {
+      val rows = etiquetaRepo.eliminarEtiqueta(id)
+      if (rows > 0) respond(Json.obj("mensaje" -> "Etiqueta eliminada"))
+      else respond(Json.obj("error" -> "Etiqueta no encontrada"), 404)
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
+
   @cask.get("/api/entidades/:id/etiquetas")
   def etiquetasEntidad(id: Int) = {
     try respond(Json.toJson(etiquetaRepo.etiquetasPorEntidad(id)))
