@@ -97,6 +97,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
   def listarPersonas() = {
     try {
       val personasDB = entidadRepo.listarTodasLasPersonas()
+      val etiquetasMap = etiquetaRepo.todasLasEtiquetasAgrupadas() // OPTIMIZACION N+1
       val resultado = personasDB.map { case (entidad, persona) =>
         PersonaCompletaResponse(
           id = entidad.id, rut = entidad.rut, tipoEntidad = entidad.tipoEntidad,
@@ -107,7 +108,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
           nombres = persona.nombres, apellidos = persona.apellidos,
           genero = persona.genero, ocupacion = persona.ocupacion,
           fechaNacimiento = persona.fechaNacimiento, fotoUrl = persona.fotoUrl,
-          etiquetas = etiquetaRepo.etiquetasPorEntidad(entidad.id)
+          etiquetas = etiquetasMap.getOrElse(entidad.id, Nil) // O(1) lookup en memoria
         )
       }
       respond(Json.toJson(resultado))

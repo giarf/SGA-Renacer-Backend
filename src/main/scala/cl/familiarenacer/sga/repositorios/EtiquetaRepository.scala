@@ -98,6 +98,36 @@ class EtiquetaRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     } finally ps.close()
   }
 
+  // --- NUEVA FUNCION OPTIMIZADA PARA N+1 ---
+  def todasLasEtiquetasAgrupadas(): Map[Int, List[Etiqueta]] = withConnection { conn =>
+    val ps = conn.prepareStatement(
+      """
+      SELECT ee.entidad_id, e.id, e.nombre, e.slug, e.descripcion, e.color, e.activa
+      FROM etiqueta e
+      JOIN entidad_etiqueta ee ON ee.etiqueta_id = e.id
+      WHERE e.activa = TRUE
+      ORDER BY e.nombre
+      """
+    )
+    try {
+      val rs = ps.executeQuery()
+      val map = scala.collection.mutable.Map.empty[Int, scala.collection.mutable.ListBuffer[Etiqueta]]
+      while (rs.next()) {
+        val entidadId = rs.getInt("entidad_id")
+        val etiqueta = Etiqueta(
+          id = rs.getInt("id"),
+          nombre = rs.getString("nombre"),
+          slug = rs.getString("slug"),
+          descripcion = Option(rs.getString("descripcion")),
+          color = Option(rs.getString("color")),
+          activa = rs.getBoolean("activa")
+        )
+        map.getOrElseUpdate(entidadId, scala.collection.mutable.ListBuffer.empty) += etiqueta
+      }
+      map.view.mapValues(_.toList).toMap
+    } finally ps.close()
+  }
+
   def asignarEtiqueta(entidadId: Int, etiquetaId: Int): Long = asignarEtiquetaMasiva(etiquetaId, List(entidadId))
 
   def asignarEtiquetaMasiva(etiquetaId: Int, entidadIds: List[Int]): Long = withConnection { conn =>
