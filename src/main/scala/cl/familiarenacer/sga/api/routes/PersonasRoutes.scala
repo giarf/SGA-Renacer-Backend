@@ -79,6 +79,9 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
 
   // ===== ENDPOINTS =====
 
+  @cask.options("/api/personas/test")
+  def testOptions() = corsOptions()
+
   @cask.get("/api/personas/test")
   def test() = {
     cask.Response(data = "Test", statusCode = 200, headers = corsHeaders)

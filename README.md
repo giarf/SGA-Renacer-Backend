@@ -40,6 +40,8 @@ El módulo de eventos y asistencia está documentado en [docs/asistencia.md](doc
 
 Base URL: `http://localhost:8080`
 
+CORS permite el origen exacto `https://sga.familiarenacer.cl`, credenciales y los encabezados `Content-Type` y `Authorization`. Todas las rutas publicadas cuentan con respuesta `OPTIONS` (204), incluidas las búsquedas, los miembros de familias y la anulación de egresos. Verificar los preflight sin conectarse a una base de datos con `sbt 'testOnly cl.familiarenacer.sga.CorsRoutesSpec'`.
+
 > Todos los ejemplos usan `curl`. Reemplaza los IDs y datos de ejemplo según corresponda.
 
 ---

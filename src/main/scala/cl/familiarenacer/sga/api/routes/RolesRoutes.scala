@@ -9,6 +9,18 @@ class RolesRoutes(rolesRepo: RolesRepository)(implicit cc: castor.Context, log: 
 
   // ===== LISTADOS INDEPENDIENTES =====
 
+  @cask.options("/api/beneficiarios")
+  def beneficiariosOptions() = corsOptions()
+
+  @cask.options("/api/colaboradores")
+  def colaboradoresOptions() = corsOptions()
+
+  @cask.options("/api/trabajadores")
+  def trabajadoresOptions() = corsOptions()
+
+  @cask.options("/api/directivos")
+  def directivosOptions() = corsOptions()
+
   @cask.get("/api/beneficiarios")
   def listarBeneficiarios() = {
     try {

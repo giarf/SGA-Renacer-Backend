@@ -23,6 +23,9 @@ class FamiliasRoutes(familiaRepo: FamiliaRepository)(implicit cc: castor.Context
   @cask.options("/api/familias/:id/beneficiarios")
   def familiaBeneficiariosOptions(id: Int) = corsOptions()
 
+  @cask.options("/api/familias/:id/beneficiarios/:personaId")
+  def familiaBeneficiarioOptions(id: Int, personaId: Int) = corsOptions()
+
   @cask.get("/api/familias")
   def listarFamilias() = {
     try {

@@ -95,6 +95,15 @@ class CatalogoRoutes(inventarioRepo: InventarioRepository)(implicit cc: castor.C
     }
   }
 
+  @cask.options("/api/catalogo/buscar")
+  def buscarCatalogoOptions() = corsOptions()
+
+  @cask.options("/api/catalogo/utilitarios")
+  def utilitariosOptions() = corsOptions()
+
+  @cask.options("/api/catalogo/utilitarios/categorias")
+  def categoriasOptions() = corsOptions()
+
   @cask.get("/api/catalogo/buscar")
   def buscarItems(q: String) = {
     try {

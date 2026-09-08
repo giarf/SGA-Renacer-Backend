@@ -33,6 +33,12 @@ class EntidadesRoutes(entidadRepo: EntidadRepository)(implicit cc: castor.Contex
 
   // ===== ENDPOINTS =====
 
+  @cask.options("/api/entidades")
+  def entidadesOptions() = corsOptions()
+
+  @cask.options("/api/entidades/existe-rut")
+  def existeRutOptions() = corsOptions()
+
   @cask.get("/api/entidades")
   def listarEntidades(tipo: Option[String] = None, q: Option[String] = None) = {
     try {

@@ -122,6 +122,9 @@ class EgresosRoutes(egresoRepo: EgresoRepository)(implicit cc: castor.Context, l
     }
   }
 
+  @cask.options("/api/egresos/:id/anular")
+  def anularEgresoOptions(id: Int) = corsOptions()
+
   @cask.post("/api/egresos/:id/anular")
   def anularEgreso(id: Int) = {
     try {
