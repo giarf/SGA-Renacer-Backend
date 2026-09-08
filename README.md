@@ -36,6 +36,8 @@ El servidor estará disponible en **`http://localhost:8080`**.
 
 ## 📋 API Reference
 
+El módulo de eventos y asistencia está documentado en [docs/asistencia.md](docs/asistencia.md), incluidas sus rutas y pruebas de concurrencia.
+
 Base URL: `http://localhost:8080`
 
 > Todos los ejemplos usan `curl`. Reemplaza los IDs y datos de ejemplo según corresponda.

@@ -9,8 +9,8 @@ import cl.familiarenacer.sga.repositorios._
  */
 object SgaApiApp extends cask.Main {
 
-  override def host = "0.0.0.0"
-  override def port = 8080
+  override def host = sys.env.getOrElse("SGA_API_HOST", "0.0.0.0")
+  override def port = sys.env.get("SGA_API_PORT").map(_.toInt).getOrElse(8080)
 
   // Inicialización de Repositorios
   val entidadRepo = new EntidadRepository(DB.ctx)
@@ -28,6 +28,8 @@ object SgaApiApp extends cask.Main {
   val egresoRepo = new EgresoRepository(DB.ctx)
   val solicitudRepo = new SolicitudRepository(DB.ctx)
   val cuentaRepo = new CuentaFinancieraRepository(DB.ctx)
+  val asistenciaRepo = new AsistenciaRepository()
+  asistenciaRepo.asegurarEsquema()
 
   // Composición de Rutas
   val allRoutes = Seq(
@@ -42,6 +44,7 @@ object SgaApiApp extends cask.Main {
     new EgresosRoutes(egresoRepo),
     new CatalogoRoutes(inventarioRepo),
     new SolicitudesRoutes(solicitudRepo),
-    new CuentasRoutes(cuentaRepo)
+    new CuentasRoutes(cuentaRepo),
+    new AsistenciaRoutes(asistenciaRepo)
   )
 }
