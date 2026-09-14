@@ -30,6 +30,7 @@ object SgaApiApp extends cask.Main {
   val cuentaRepo = new CuentaFinancieraRepository(DB.ctx)
   val asistenciaRepo = new AsistenciaRepository()
   asistenciaRepo.asegurarEsquema()
+  val apoderadoRepo = new ApoderadoRepository()
 
   // Composición de Rutas
   val allRoutes = Seq(
@@ -45,6 +46,7 @@ object SgaApiApp extends cask.Main {
     new CatalogoRoutes(inventarioRepo),
     new SolicitudesRoutes(solicitudRepo),
     new CuentasRoutes(cuentaRepo),
-    new AsistenciaRoutes(asistenciaRepo)
+    new AsistenciaRoutes(asistenciaRepo),
+    new ApoderadosRoutes(apoderadoRepo)
   )
 }

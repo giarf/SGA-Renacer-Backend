@@ -195,17 +195,17 @@ class FamiliaRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    */
   def quitarMiembro(familiaId: Int, personaId: Int): Boolean = {
     withConnection { conn =>
-      val ps = conn.prepareStatement("DELETE FROM familia_miembro WHERE familia_id = ? AND persona_id = ?")
+      conn.setAutoCommit(false)
       try {
-        ps.setInt(1, familiaId)
-        ps.setInt(2, personaId)
-        ps.executeUpdate()
-      } finally ps.close()
+        val ps = conn.prepareStatement("DELETE FROM familia_miembro WHERE familia_id = ? AND persona_id = ?")
+        val removed = try {
+          ps.setInt(1, familiaId); ps.setInt(2, personaId); ps.executeUpdate()
+        } finally ps.close()
+        val legacy = conn.prepareStatement("UPDATE beneficiario SET familia_id = NULL WHERE persona_id = ? AND familia_id = ?")
+        try { legacy.setInt(1, personaId); legacy.setInt(2, familiaId); legacy.executeUpdate() } finally legacy.close()
+        conn.commit()
+        removed > 0
+      } catch { case e: Exception => conn.rollback(); throw e }
     }
-    ctx.run(
-      query[Beneficiario]
-        .filter(b => b.personaId == lift(personaId) && b.familiaId.contains(lift(familiaId)))
-        .update(_.familiaId -> lift(Option.empty[Int]))
-    ) > 0
   }
 }

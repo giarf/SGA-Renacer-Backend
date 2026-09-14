@@ -14,6 +14,19 @@ class FamiliasRoutes(familiaRepo: FamiliaRepository)(implicit cc: castor.Context
 
   // ===== ENDPOINTS =====
 
+  @cask.options("/api/familias/:id/miembros")
+  def miembrosOptions(id: Int) = corsOptions()
+  @cask.options("/api/familias/:id/miembros/:personaId")
+  def miembroOptions(id: Int, personaId: Int) = corsOptions()
+  @cask.get("/api/familias/:id/miembros")
+  def miembros(id: Int) = listarMiembrosFamilia(id)
+  @cask.post("/api/familias/:id/miembros")
+  def agregar(id: Int, request: cask.Request) = agregarMiembroFamilia(id, request)
+  @cask.put("/api/familias/:id/miembros/:personaId")
+  def actualizar(id: Int, personaId: Int, request: cask.Request) = actualizarMiembroFamilia(id, personaId, request)
+  @cask.delete("/api/familias/:id/miembros/:personaId")
+  def quitar(id: Int, personaId: Int) = quitarMiembroFamilia(id, personaId)
+
   @cask.options("/api/familias")
   def familiasOptions() = corsOptions()
 
