@@ -113,20 +113,21 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     }
   }
 
-  /**
-   * Busca ítems por nombre o categoría usando ILIKE con unaccent.
-   * Retorna máximo 15 resultados para autocompletado.
-   * Soporta búsqueda fuzzy: "Termincas" encontrará "Térmicas", "abarotes" encontrará "Abarrotes".
-   */
+  /** Busca todas las palabras, sin distinguir orden, mayúsculas o tildes. */
   def buscarItems(queryBusqueda: String): List[ItemCatalogo] = {
-    // Preparamos el término con comodines SQL y normalizado
-    val termino = s"%${queryBusqueda.trim.toLowerCase}%"
-    
+    val palabras = java.text.Normalizer.normalize(queryBusqueda, java.text.Normalizer.Form.NFD)
+      .replaceAll("\\p{M}+", "").toLowerCase(java.util.Locale.ROOT)
+      .replaceAll("[^\\p{L}\\p{N}]+", " ").trim
     ctx.run(
       query[ItemCatalogo].filter { i =>
-        // Búsqueda en nombre (normalizado, sin acentos) O en categoría
-        (infix"unaccent(lower(coalesce(${i.nombre}, '')))".as[String] like lift(termino)) ||
-        (infix"unaccent(lower(coalesce(${i.categoria}, '')))".as[String] like lift(termino))
+        infix"""
+          ${lift(palabras)} <> '' AND NOT EXISTS (
+            SELECT 1 FROM regexp_split_to_table(${lift(palabras)}, ' +') AS search_word(value)
+            WHERE strpos(regexp_replace(unaccent(lower(
+              coalesce(${i.nombre}, '') || ' ' || coalesce(${i.categoria}, '')
+            )), '[^[:alnum:]]+', ' ', 'g'), search_word.value) = 0
+          )
+        """.as[Boolean]
       }.take(15)
     )
   }

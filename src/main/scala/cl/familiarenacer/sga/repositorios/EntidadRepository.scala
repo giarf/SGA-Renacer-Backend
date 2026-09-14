@@ -203,11 +203,13 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   def listarEntidadesUnificadas(tipoFiltro: Option[String] = None, queryBusqueda: Option[String] = None): List[EntidadResumen] = {
     queryBusqueda match {
       case Some(termino) if termino.trim.nonEmpty =>
-        // Búsqueda con unaccent y LIKE en SQL
-        val terminoLike = s"%${termino.trim.toLowerCase}%"
-        
-        val terminoStartWith = s"${termino.trim.toLowerCase}%"
-        
+        // Match every word independently: middle names and word order do not block a result.
+        val palabras = java.text.Normalizer.normalize(termino, java.text.Normalizer.Form.NFD)
+          .replaceAll("\\p{M}+", "").toLowerCase(java.util.Locale.ROOT)
+          .replaceAll("[^\\p{L}\\p{N}]+", " ").trim
+        val rutBusqueda = if (termino.matches("[0-9kK.\\s-]+") && termino.exists(_.isDigit))
+          termino.toLowerCase(java.util.Locale.ROOT).replaceAll("[^0-9k]", "") else ""
+
         val q = quote {
           query[Entidad]
             .leftJoin(query[PersonaNatural]).on(_.id == _.entidadId)
@@ -215,30 +217,37 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             .filter { case ((e, p), i) =>
               // Filtro de tipo (case-insensitive)
               (lift(tipoFiltro).isEmpty || e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoFiltro.map(_.toLowerCase).getOrElse("")))) &&
-              // Filtro de búsqueda
-              (
-              // Filtro de búsqueda unificado y robusto
               infix"""
-                (unaccent(lower(
-                  coalesce(${p.map(_.nombres)}, '') || ' ' || 
-                  coalesce(${p.flatMap(_.apellidos)}, '') || ' ' || 
-                  coalesce(${p.flatMap(_.ocupacion)}, '') || ' ' ||
-                  coalesce(${i.map(_.razonSocial)}, '') || ' ' ||
-                  coalesce(${i.flatMap(_.nombreFantasia)}, '') || ' ' ||
-                  coalesce(${e.anotaciones}, '')
-                )) LIKE unaccent(lower(${lift(terminoLike)})))
-                OR (lower(${e.rut}) LIKE ${lift(terminoLike)})
+                (
+                  (${lift(palabras)} <> '' AND NOT EXISTS (
+                    SELECT 1 FROM regexp_split_to_table(${lift(palabras)}, ' +') AS search_word(value)
+                    WHERE strpos(
+                      regexp_replace(unaccent(lower(
+                        coalesce(${p.map(_.nombres)}, '') || ' ' ||
+                        coalesce(${p.flatMap(_.apellidos)}, '') || ' ' ||
+                        coalesce(${p.flatMap(_.ocupacion)}, '') || ' ' ||
+                        coalesce(${i.map(_.razonSocial)}, '') || ' ' ||
+                        coalesce(${i.flatMap(_.nombreFantasia)}, '') || ' ' ||
+                        coalesce(${e.anotaciones}, '') || ' ' || coalesce(${e.rut}, '')
+                      )), '[^[:alnum:]]+', ' ', 'g'), search_word.value
+                    ) = 0
+                  ))
+                  OR (${lift(rutBusqueda)} <> '' AND strpos(
+                    regexp_replace(lower(coalesce(${e.rut}, '')), '[^0-9k]', '', 'g'),
+                    ${lift(rutBusqueda)}
+                  ) > 0)
+                )
               """.as[Boolean]
-              )
             }
             .sortBy { case ((e, p), i) =>
-              // Ranking de Relevancia: Priorizamos coincidencias al inicio
               infix"""
-                CASE 
-                  WHEN unaccent(lower(coalesce(${p.map(_.nombres)}, ''))) LIKE ${lift(terminoStartWith)} THEN 1
-                  WHEN unaccent(lower(coalesce(${p.flatMap(_.apellidos)}, ''))) LIKE ${lift(terminoStartWith)} THEN 2
-                  WHEN unaccent(lower(${i.map(_.razonSocial)})) LIKE ${lift(terminoStartWith)} THEN 2
-                  WHEN lower(${e.rut}) LIKE ${lift(terminoStartWith)} THEN 3
+                CASE
+                  WHEN strpos(unaccent(lower(coalesce(${p.map(_.nombres)}, ''))), ${lift(palabras)}) = 1 THEN 1
+                  WHEN strpos(unaccent(lower(coalesce(${p.flatMap(_.apellidos)}, ''))), ${lift(palabras)}) = 1 THEN 2
+                  WHEN strpos(unaccent(lower(coalesce(${i.map(_.razonSocial)}, ''))), ${lift(palabras)}) = 1 THEN 2
+                  WHEN ${lift(rutBusqueda)} <> '' AND strpos(
+                    regexp_replace(lower(coalesce(${e.rut}, '')), '[^0-9k]', '', 'g'), ${lift(rutBusqueda)}
+                  ) = 1 THEN 3
                   ELSE 4
                 END
               """.as[Int]
