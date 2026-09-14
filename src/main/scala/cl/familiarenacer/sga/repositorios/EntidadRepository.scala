@@ -174,11 +174,12 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * Mantenemos este método por compatibilidad, aunque se recomienda usar listarEntidadesUnificadas.
    */
   def listarPersonas(tipoFiltro: Option[String] = None): List[PersonaNatural] = {
+    val esPersona = tipoFiltro.exists(t => Set("persona", "personanatural").contains(t.trim.toLowerCase(java.util.Locale.ROOT)))
     val q = quote {
       query[PersonaNatural]
         .join(query[Entidad]).on(_.entidadId == _.id)
         .filter { case (p, e) =>
-           lift(tipoFiltro).forall(tf => e.tipoEntidad.contains(tf))
+           lift(esPersona) || lift(tipoFiltro).forall(tf => e.tipoEntidad.contains(tf))
         }
         .map(_._1) // Solo nos interesan los datos de la persona
     }
@@ -201,6 +202,8 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * @param queryBusqueda Busca por nombre (con unaccent) o RUT parcial - ej: "ju" encuentra "Juan"
    */
   def listarEntidadesUnificadas(tipoFiltro: Option[String] = None, queryBusqueda: Option[String] = None): List[EntidadResumen] = {
+    val tipoNormalizado = tipoFiltro.map(_.trim.toLowerCase(java.util.Locale.ROOT))
+    val esPersona = tipoNormalizado.exists(t => t == "persona" || t == "personanatural")
     queryBusqueda match {
       case Some(termino) if termino.trim.nonEmpty =>
         // Match every word independently: middle names and word order do not block a result.
@@ -216,7 +219,9 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             .leftJoin(query[Institucion]).on(_._1.id == _.entidadId)
             .filter { case ((e, p), i) =>
               // Filtro de tipo (case-insensitive)
-              (lift(tipoFiltro).isEmpty || e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoFiltro.map(_.toLowerCase).getOrElse("")))) &&
+              (lift(tipoFiltro).isEmpty ||
+                (lift(esPersona) && p.map(_.entidadId).isDefined) ||
+                (!lift(esPersona) && e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoNormalizado.getOrElse(""))))) &&
               infix"""
                 (
                   (${lift(palabras)} <> '' AND NOT EXISTS (
@@ -273,7 +278,9 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             .leftJoin(query[PersonaNatural]).on(_.id == _.entidadId)
             .leftJoin(query[Institucion]).on(_._1.id == _.entidadId)
             .filter { case ((e, p), i) =>
-              (lift(tipoFiltro).isEmpty || e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoFiltro.map(_.toLowerCase).getOrElse(""))))
+              (lift(tipoFiltro).isEmpty ||
+                (lift(esPersona) && p.map(_.entidadId).isDefined) ||
+                (!lift(esPersona) && e.tipoEntidad.map(_.toLowerCase).contains(lift(tipoNormalizado.getOrElse("")))))
             }
             .map { case ((e, p), i) =>
               (

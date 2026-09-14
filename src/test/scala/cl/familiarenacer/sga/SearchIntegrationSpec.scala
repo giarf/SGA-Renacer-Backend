@@ -29,10 +29,11 @@ class SearchIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
           s.execute("CREATE TABLE entidad(id INT PRIMARY KEY, rut TEXT, tipo_entidad TEXT, anotaciones TEXT)")
           s.execute("CREATE TABLE persona_natural(entidad_id INT, nombres TEXT, apellidos TEXT, ocupacion TEXT)")
           s.execute("CREATE TABLE institucion(entidad_id INT, razon_social TEXT, nombre_fantasia TEXT)")
-          s.execute("INSERT INTO entidad VALUES (1, '12.345.678-K', 'Persona', NULL), (2, '23456789k', 'Persona', NULL), (3, NULL, 'Persona', NULL), (4, NULL, 'Institucion', NULL)")
-          s.execute("INSERT INTO persona_natural VALUES (1, 'Gabriel Inti Alejandro', 'Rojas Ferrada', NULL), (2, 'María José', 'Pérez', NULL), (3, 'Gabriela', 'Aros', NULL)")
+          s.execute("INSERT INTO entidad VALUES (1, '12.345.678-K', 'Persona', NULL), (2, '23456789k', 'Persona', NULL), (3, NULL, 'Persona', NULL), (4, NULL, 'Institucion', NULL), (5, NULL, 'PersonaNatural', NULL)")
+          s.execute("INSERT INTO persona_natural VALUES (1, 'Gabriel Inti Alejandro', 'Rojas Ferrada', NULL), (2, 'María José', 'Pérez', NULL), (3, 'Gabriela', 'Aros', NULL), (5, 'Valeria', 'Robles', NULL)")
           s.execute("CREATE TABLE item_catalogo(id INT PRIMARY KEY, nombre TEXT, categoria TEXT, unidad_medida_estandar TEXT, stock_actual NUMERIC, valor_total_stock NUMERIC, precio_promedio_ponderado NUMERIC, precio_referencia NUMERIC)")
           s.execute("INSERT INTO item_catalogo VALUES (1, 'Manta térmica', 'Ropa de abrigo', NULL, 0, 0, 0, 0)")
+          s.execute("ALTER TABLE persona_natural ADD COLUMN genero TEXT, ADD COLUMN fecha_nacimiento DATE, ADD COLUMN foto_url TEXT")
           s.execute("INSERT INTO institucion VALUES (4, 'Fundación María del Sur', 'Casa Abierta')")
         }
       }
@@ -69,6 +70,15 @@ class SearchIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
     for (q <- Seq("TÉRMICA", "termica ropa", "abrigo manta")) assert(repo.buscarItems(q).map(_.id) == List(1), q)
     assert(repo.buscarItems("%").isEmpty)
     assert(repo.buscarItems("manta inexistente").isEmpty)
+  }
+  test("Persona incluye registros históricos PersonaNatural al buscar y al listar") {
+    for (tipo <- Seq("Persona", "PersonaNatural", "persona", " PERSONA ")) {
+      for (q <- Seq("Val", "VAL", "Valeria Robles", "robles val"))
+        assert(ids(q, Some(tipo)) == Set(5), s"$tipo: $q")
+      assert(new EntidadRepository(db).listarEntidadesUnificadas(Some(tipo)).map(_.id).toSet == Set(1, 2, 3, 5))
+      assert(new EntidadRepository(db).listarPersonas(Some(tipo)).map(_.entidadId).toSet == Set(1, 2, 3, 5))
+    }
+    assert(ids("Val", Some("Institucion")).isEmpty)
   }
   test("instituciones, nombre de fantasía y filtro de tipo") {
     assert(ids("sur fundacion") == Set(4))
