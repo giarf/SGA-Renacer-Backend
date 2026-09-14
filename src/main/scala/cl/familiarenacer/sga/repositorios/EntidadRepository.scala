@@ -27,7 +27,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       // 1. Insertamos la Entidad y recuperamos el ID generado autoincrementalmente.
       val entidadId = ctx.run(
         query[Entidad]
-          .insertValue(lift(entidad))
+          .insertValue(lift(entidad.copy(tipoEntidad = Some("PersonaNatural"))))
           .returningGenerated(_.id)
       )
 
@@ -111,7 +111,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           .filter(_.id == lift(entidadId))
           .update(
             _.rut -> lift(entidad.rut),
-            _.tipoEntidad -> lift(entidad.tipoEntidad),
+            _.tipoEntidad -> lift(Option("PersonaNatural")),
             _.telefono -> lift(entidad.telefono),
             _.correo -> lift(entidad.correo),
             _.direccion -> lift(entidad.direccion),
@@ -174,7 +174,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * Mantenemos este método por compatibilidad, aunque se recomienda usar listarEntidadesUnificadas.
    */
   def listarPersonas(tipoFiltro: Option[String] = None): List[PersonaNatural] = {
-    val esPersona = tipoFiltro.exists(t => Set("persona", "personanatural").contains(t.trim.toLowerCase(java.util.Locale.ROOT)))
+    val esPersona = tipoFiltro.exists(_.trim.equalsIgnoreCase("PersonaNatural"))
     val q = quote {
       query[PersonaNatural]
         .join(query[Entidad]).on(_.entidadId == _.id)
@@ -203,7 +203,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    */
   def listarEntidadesUnificadas(tipoFiltro: Option[String] = None, queryBusqueda: Option[String] = None): List[EntidadResumen] = {
     val tipoNormalizado = tipoFiltro.map(_.trim.toLowerCase(java.util.Locale.ROOT))
-    val esPersona = tipoNormalizado.exists(t => t == "persona" || t == "personanatural")
+    val esPersona = tipoNormalizado.contains("personanatural")
     queryBusqueda match {
       case Some(termino) if termino.trim.nonEmpty =>
         // Match every word independently: middle names and word order do not block a result.
@@ -312,7 +312,7 @@ class EntidadRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       ctx.run(
         query[Entidad]
           .filter(_.id == lift(entidad.id))
-          .updateValue(lift(entidad))
+          .updateValue(lift(entidad.copy(tipoEntidad = Some("PersonaNatural"))))
       )
 
       // 2. Actualizar tabla PersonaNatural

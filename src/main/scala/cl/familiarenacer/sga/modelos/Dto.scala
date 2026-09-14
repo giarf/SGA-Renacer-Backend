@@ -7,7 +7,7 @@ package cl.familiarenacer.sga.modelos
  * @param id ID único de la entidad.
  * @param identificador RUT o identificador principal.
  * @param nombreCompleto Nombres + Apellidos (Persona) o Razón Social (Institución).
- * @param tipoEntidad Tipo de entidad (Persona, Institucion, etc.).
+ * @param tipoEntidad Tipo de entidad (PersonaNatural, Institucion).
  * @param correo Correo de contacto (Opcional).
  * @param telefono Teléfono de contacto (Opcional).
  * @param direccion Dirección física (Opcional).

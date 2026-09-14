@@ -9,7 +9,7 @@ import java.time.LocalDateTime
  *
  * @param id Identificador único de la entidad (Autoincremental).
  * @param rut Rol Único Tributario (opcional, pero único si existe).
- * @param tipoEntidad Tipo de entidad: 'Persona' o 'Institucion'.
+ * @param tipoEntidad Tipo de entidad: 'PersonaNatural' o 'Institucion'.
  * @param telefono Número de contacto.
  * @param correo Correo electrónico de contacto.
  * @param direccion Dirección física.

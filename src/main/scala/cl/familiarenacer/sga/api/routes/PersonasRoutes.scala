@@ -164,7 +164,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
         try {
           validarFotoPersona(formDataOpt)
           val nuevaEntidad = Entidad(
-            id = 0, rut = body.rut, tipoEntidad = Some("Persona"),
+            id = 0, rut = body.rut, tipoEntidad = Some("PersonaNatural"),
             telefono = body.telefono, correo = body.correo,
             direccion = body.direccion, comuna = body.comuna, region = body.region,
             redSocial = body.redSocial, gestorId = body.gestorId,
@@ -262,7 +262,7 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
     try {
       val body = Json.parse(request.text()).as[EditarPersonaRequest]
       val entidad = Entidad(
-        id = id, rut = body.rut, tipoEntidad = Some(body.tipoEntidad),
+        id = id, rut = body.rut, tipoEntidad = Some("PersonaNatural"),
         telefono = body.telefono, correo = body.correo,
         direccion = body.direccion, comuna = body.comuna, region = body.region,
         redSocial = body.redSocial, gestorId = body.gestorId,

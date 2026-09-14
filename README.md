@@ -98,7 +98,7 @@ curl -X PUT http://localhost:8080/api/personas/1 \
   -d '{
     "id": 1,
     "rut": "12.345.678-9",
-    "tipoEntidad": "Persona",
+    "tipoEntidad": "PersonaNatural",
     "telefono": "+56912345678",
     "correo": "nuevo@email.com",
     "direccion": "Calle Nueva 789",
@@ -810,7 +810,7 @@ curl -X POST http://localhost:8080/api/entidades/actualizar \
   -d '{
     "id": 1,
     "rut": "12.345.678-9",
-    "tipoEntidad": "Persona",
+    "tipoEntidad": "PersonaNatural",
     "telefono": "+56912345678",
     "correo": "actualizado@email.com",
     "direccion": "Nueva Dirección 456",
