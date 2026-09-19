@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS campana_columna (
   UNIQUE (campana_id, clave)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS campana_columna_nombre ON campana_columna(campana_id, lower(nombre));
+ALTER TABLE campana_columna DROP CONSTRAINT IF EXISTS campana_columna_tipo_check;
+ALTER TABLE campana_columna ADD CONSTRAINT campana_columna_tipo_check CHECK (tipo IN ('boolean', 'text', 'number', 'whatsapp'));
 CREATE TABLE IF NOT EXISTS campana_valor (
   campana_id INTEGER NOT NULL,
   participante_id INTEGER NOT NULL,

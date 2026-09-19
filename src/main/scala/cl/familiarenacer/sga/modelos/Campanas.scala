@@ -15,6 +15,17 @@ case class ParticipanteCampana(id: Int, beneficiario: ContactoCampana, padrino: 
 case class DetalleCampana(campana: Campana, columnas: List[ColumnaCampana], participantes: List[ParticipanteCampana])
 case class CampanaError(status: Int, mensaje: String) extends RuntimeException(mensaje)
 
+object CampanaMensaje {
+  def validar(valor: JsValue): Unit = {
+    val valido = valor.asOpt[JsObject].exists { obj =>
+      obj.keys == Set("texto", "enviado") &&
+        (obj \ "texto").asOpt[String].exists(_.length <= 2000) &&
+        (obj \ "enviado").asOpt[Boolean].exists(enviado => !enviado || (obj \ "texto").as[String].trim.nonEmpty)
+    }
+    if (!valido) throw CampanaError(400, "El mensaje debe incluir texto de hasta 2000 caracteres y su marca de enviado.")
+  }
+}
+
 object CampanasJson {
   implicit val campanaFormat: OFormat[Campana] = Json.format[Campana]
   implicit val crearFormat: OFormat[CrearCampana] = Json.using[Json.WithDefaultValues].format[CrearCampana]

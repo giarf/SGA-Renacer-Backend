@@ -112,6 +112,9 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     if (body.padrinoId.contains(actual._1)) throw CampanaError(400, "El beneficiario y el padrino deben ser personas diferentes.")
     if (actual._2 != body.padrinoId) {
       execute(c, "UPDATE campana_participante SET padrino_id = ?, version = version + 1 WHERE campana_id = ? AND id = ?", body.padrinoId.map(Int.box).orNull, id, participanteId)
+      execute(c, """UPDATE campana_valor SET valor = jsonb_set(valor, '{enviado}', 'false'::jsonb), version = version + 1, actualizado_en = CURRENT_TIMESTAMP
+        WHERE campana_id = ? AND participante_id = ? AND columna_id IN
+        (SELECT id FROM campana_columna WHERE campana_id = ? AND tipo = 'whatsapp')""", id, participanteId, id)
       // Communications belong to the assigned sponsor; reset them (without resetting versions) on reassignment.
       execute(c, """UPDATE campana_valor SET valor = 'false'::jsonb, version = version + 1, actualizado_en = CURRENT_TIMESTAMP
         WHERE campana_id = ? AND participante_id = ? AND columna_id IN
@@ -123,7 +126,7 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     if (execute(c, "DELETE FROM campana_participante WHERE campana_id = ? AND id = ?", id, participanteId) == 0) throw CampanaError(404, "El participante ya no existe.")
   }
   def agregarColumna(id: Int, body: CrearColumnaAsistencia): Int = {
-    val nombre = AsistenciaValidacion.nombre(body.nombre); val tipo = AsistenciaValidacion.tipo(body.tipo)
+    val nombre = AsistenciaValidacion.nombre(body.nombre); val tipo = if (body.tipo == "whatsapp") body.tipo else AsistenciaValidacion.tipo(body.tipo)
     transaction { c =>
       editable(c, id)
       query(c, "INSERT INTO campana_columna(campana_id, nombre, tipo) VALUES (?, ?, ?) RETURNING id", id, nombre, tipo)(_.getInt(1)).head
@@ -133,10 +136,12 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     version(body.version); editable(c, id)
     val columna = query(c, "SELECT tipo, clave FROM campana_columna WHERE campana_id = ? AND id = ? FOR SHARE", id, columnaId)(rs => (rs.getString(1), rs.getString(2)))
       .headOption.getOrElse(throw CampanaError(404, "La columna ya no existe."))
-    AsistenciaValidacion.valor(columna._1, body.valor)
+    if (columna._1 == "whatsapp") CampanaMensaje.validar(body.valor) else AsistenciaValidacion.valor(columna._1, body.valor)
     val padrino = query(c, "SELECT padrino_id FROM campana_participante WHERE campana_id = ? AND id = ? FOR SHARE", id, participanteId)(rs => Option(rs.getObject(1)))
       .headOption.getOrElse(throw CampanaError(404, "El participante ya no existe."))
     if (Set("ficha_enviada", "agradecimiento").contains(columna._2) && body.valor == JsBoolean(true) && padrino.isEmpty)
+      throw CampanaError(400, "Asigna un padrino antes de marcar el envío.")
+    if (columna._1 == "whatsapp" && (body.valor \ "enviado").as[Boolean] && padrino.isEmpty)
       throw CampanaError(400, "Asigna un padrino antes de marcar el envío.")
     val result = if (body.version == 0) query(c, """INSERT INTO campana_valor(campana_id, participante_id, columna_id, valor, version)
       VALUES (?, ?, ?, ?::jsonb, 1) ON CONFLICT DO NOTHING RETURNING version, actualizado_en""", id, participanteId, columnaId, Json.stringify(body.valor))(readValor(body.valor))
