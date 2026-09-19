@@ -58,9 +58,16 @@ class CampanasRoutes(repo: CampanaRepository)(implicit cc: castor.Context, log: 
   def quitar(id: Int, participanteId: Int) = safely { repo.quitarParticipante(id, participanteId); respond(Json.obj("mensaje" -> "Participante retirado")) }
   @cask.post("/api/campanas/:id/columnas")
   def columna(id: Int, request: cask.Request) = safely { respond(Json.obj("id" -> repo.agregarColumna(id, Json.parse(request.text()).as[CrearColumnaAsistencia])), 201) }
+  @cask.options("/api/campanas/:id/columnas/:columnaId/mensaje")
+  def mensajeOptions(id: Int, columnaId: Int) = corsOptions()
+  @cask.put("/api/campanas/:id/columnas/:columnaId/mensaje")
+  def mensaje(id: Int, columnaId: Int, request: cask.Request) = safely {
+    repo.configurarMensaje(id, columnaId, Json.parse(request.text()).as[ConfigurarMensajeCampana])
+    respond(Json.obj("mensaje" -> "Mensaje actualizado"))
+  }
   @cask.put("/api/campanas/:id/participantes/:participanteId/valores/:columnaId")
   def valor(id: Int, participanteId: Int, columnaId: Int, request: cask.Request) = safely {
-    respond(Json.toJson(repo.guardarValor(id, participanteId, columnaId, Json.parse(request.text()).as[GuardarValorAsistencia])))
+    respond(Json.toJson(repo.guardarCelda(id, participanteId, columnaId, Json.parse(request.text()).as[GuardarCeldaCampana])))
   }
   initialize()
 }
