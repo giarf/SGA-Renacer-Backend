@@ -10,7 +10,7 @@ import scala.util.control.NonFatal
 
 class HuellasRoutes(repo: HuellaRepository, huellero: Huellero)(implicit cc: castor.Context, log: cask.Logger) extends cask.Routes with ApiSupport {
   private def safely(f: => cask.Response[String]): cask.Response[String] = try f catch {
-    case e: HuellaError => respond(Json.obj("error" -> e.mensaje), e.status)
+    case e: HuellaError => respond(Json.obj("error" -> e.mensaje) ++ (if (e.codigo.isEmpty) Json.obj() else Json.obj("codigo" -> e.codigo)), e.status)
     case _: JsResultException => respond(Json.obj("error" -> "Revisa los datos enviados."), 400)
     case _: com.fasterxml.jackson.core.JsonProcessingException => respond(Json.obj("error" -> "El contenido enviado no es válido."), 400)
     case e: java.sql.SQLException if e.getSQLState == "23503" => respond(Json.obj("error" -> "La persona ya no existe."), 404)
@@ -28,16 +28,25 @@ class HuellasRoutes(repo: HuellaRepository, huellero: Huellero)(implicit cc: cas
   @cask.options("/api/personas/:id/huellas/:huellaId")
   def huellaOptions(id: Int, huellaId: Int) = corsOptions()
 
+  /** Siempre 200: el frontend muestra el indicador verde o rojo según conectado. */
   @cask.get("/api/huellero/estado")
-  def estado() = safely { respond(Json.obj("conectado" -> true) ++ huellero.estado()) }
+  def estado() = safely {
+    val body = try Json.obj("conectado" -> true) ++ huellero.estado() catch {
+      case e: HuellaError => Json.obj("conectado" -> false, "codigo" -> e.codigo, "error" -> e.mensaje)
+    }
+    val response = respond(body)
+    response.copy(headers = response.headers ++ Seq("Cache-Control" -> "no-store"))
+  }
 
-  /** Pide al lector una huella y la compara contra todas las plantillas guardadas. */
+  /** Pide al lector una huella y la compara contra todas las plantillas guardadas. Acepta {timeout} opcional (2–120 s). */
   @cask.post("/api/huellero/identificar")
-  def identificar() = safely {
+  def identificar(request: cask.Request) = safely {
+    val timeout = scala.util.Try(Json.parse(request.text())).toOption.flatMap(j => (j \ "timeout").asOpt[Int])
+    if (timeout.exists(t => t < 2 || t > 120)) throw HuellaError(400, "timeout debe estar entre 2 y 120 segundos.")
     val candidatos = repo.plantillas()
-    if (candidatos.isEmpty) throw HuellaError(404, "Aún no hay huellas registradas.")
-    val persona = huellero.identificar(candidatos).flatMap(repo.persona)
-      .getOrElse(throw HuellaError(404, "La huella no coincide con ninguna persona registrada."))
+    if (candidatos.isEmpty) throw HuellaError(404, "Aún no hay huellas registradas.", "sin_huellas")
+    val persona = huellero.identificar(candidatos, timeout).flatMap(repo.persona)
+      .getOrElse(throw HuellaError(404, "La huella no coincide con ninguna persona registrada.", "no_coincide"))
     respond(Json.toJson(persona))
   }
 

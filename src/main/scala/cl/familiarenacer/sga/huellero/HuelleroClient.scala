@@ -14,7 +14,7 @@ import play.api.libs.json._
 trait Huellero {
   def estado(): JsObject
   def capturar(): CapturaHuella
-  def identificar(candidatos: Seq[PlantillaHuella]): Option[Int]
+  def identificar(candidatos: Seq[PlantillaHuella], timeoutSegundos: Option[Int] = None): Option[Int]
 }
 
 class HuelleroHttp(
@@ -33,14 +33,21 @@ class HuelleroHttp(
     token.foreach(t => builder.header("Authorization", s"Bearer $t"))
     val response = try client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
     catch {
-      case _: HttpTimeoutException => throw HuellaError(504, "El huellero no recibió una huella a tiempo. Intenta nuevamente.")
-      case _: java.io.IOException => throw HuellaError(503, "No se pudo conectar con el huellero. Revisa que el equipo del lector esté encendido.")
+      case _: HttpTimeoutException => throw HuellaError(504, "El huellero no respondió a tiempo. Intenta nuevamente.", "tiempo")
+      case _: java.io.IOException => throw HuellaError(503, "No se pudo conectar con el huellero. Revisa que el equipo del lector esté encendido.", "sin_conexion")
     }
     val json = scala.util.Try(Json.parse(response.body())).getOrElse(JsNull)
     if (response.statusCode() >= 400) {
       val mensaje = (json \ "error").asOpt[String].orElse((json \ "mensaje").asOpt[String]).getOrElse("El huellero respondió con un error.")
-      // 4xx del huellero (lectura cancelada, dedo mal puesto) se muestran tal cual al operador.
-      throw HuellaError(if (response.statusCode() < 500) 422 else 502, mensaje)
+      // Errores de lectura del huellero se muestran tal cual al operador.
+      throw response.statusCode() match {
+        case 401 | 403 => HuellaError(502, "El huellero rechazó la clave del SGA. Revisa HUELLERO_TOKEN en el .env del backend y reinícialo.", "clave")
+        case 408 => HuellaError(408, mensaje, "sin_dedo")
+        case 409 => HuellaError(409, mensaje, "ocupado")
+        case 503 => HuellaError(503, mensaje, "sin_conexion")
+        case s if s < 500 => HuellaError(422, mensaje)
+        case _ => HuellaError(502, mensaje)
+      }
     }
     json
   }
@@ -51,8 +58,10 @@ class HuelleroHttp(
   def capturar(): CapturaHuella = post("/api/capturar", Json.obj(), timeoutLectura).asOpt[CapturaHuella]
     .map(HuellaValidacion.captura).getOrElse(throw HuellaError(502, "El huellero devolvió una respuesta inválida."))
 
-  def identificar(candidatos: Seq[PlantillaHuella]): Option[Int] = {
-    val body = Json.obj("candidatos" -> candidatos.map(c => Json.obj("id" -> c.id, "plantilla" -> c.plantilla, "formato" -> c.formato)))
-    (post("/api/identificar", body, timeoutLectura) \ "id").asOpt[Int]
+  def identificar(candidatos: Seq[PlantillaHuella], timeoutSegundos: Option[Int] = None): Option[Int] = {
+    val body = Json.obj("candidatos" -> candidatos.map(c => Json.obj("id" -> c.id, "plantilla" -> c.plantilla, "formato" -> c.formato))) ++
+      timeoutSegundos.fold(Json.obj())(t => Json.obj("timeout" -> t))
+    val espera = timeoutSegundos.map(t => Duration.ofSeconds(t + 20L)).getOrElse(timeoutLectura)
+    (post("/api/identificar", body, espera) \ "id").asOpt[Int]
   }
 }

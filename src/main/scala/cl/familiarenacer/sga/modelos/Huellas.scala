@@ -15,7 +15,8 @@ object HuellasJson {
   implicit val identificadaFormat: OFormat[PersonaIdentificada] = Json.format[PersonaIdentificada]
 }
 
-case class HuellaError(status: Int, mensaje: String) extends RuntimeException(mensaje)
+/** codigo permite al frontend distinguir casos sin depender del texto: sin_huellas, no_coincide, sin_dedo, ocupado, sin_conexion, tiempo. */
+case class HuellaError(status: Int, mensaje: String, codigo: String = "") extends RuntimeException(mensaje)
 
 object HuellaValidacion {
   val dedos: Seq[String] = Seq(
