@@ -38,6 +38,8 @@ El servidor estará disponible en **`http://localhost:8080`**.
 
 El módulo de eventos y asistencia está documentado en [docs/asistencia.md](docs/asistencia.md), incluidas sus rutas y pruebas de concurrencia.
 
+Las huellas digitales (lector DigitalPersona 4500U en otro PC) están documentadas en [docs/huellas.md](docs/huellas.md), incluido el contrato que debe cumplir el servicio `huella.familiarenacer.cl`.
+
 Base URL: `http://localhost:8080`
 
 CORS permite el origen exacto `https://sga.familiarenacer.cl`, credenciales y los encabezados `Content-Type` y `Authorization`. Todas las rutas publicadas cuentan con respuesta `OPTIONS` (204), incluidas las búsquedas, los miembros de familias y la anulación de egresos. Verificar los preflight sin conectarse a una base de datos con `sbt 'testOnly cl.familiarenacer.sga.CorsRoutesSpec'`.

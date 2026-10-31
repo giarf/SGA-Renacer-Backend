@@ -33,6 +33,7 @@ object SgaApiApp extends cask.Main {
   val campanaRepo = new CampanaRepository()
   campanaRepo.asegurarEsquema()
   val apoderadoRepo = new ApoderadoRepository()
+  val huellaRepo = new HuellaRepository()
 
   // Composición de Rutas
   val allRoutes = Seq(
@@ -50,6 +51,7 @@ object SgaApiApp extends cask.Main {
     new CuentasRoutes(cuentaRepo),
     new AsistenciaRoutes(asistenciaRepo),
     new CampanasRoutes(campanaRepo),
-    new ApoderadosRoutes(apoderadoRepo)
+    new ApoderadosRoutes(apoderadoRepo),
+    new HuellasRoutes(huellaRepo, new cl.familiarenacer.sga.huellero.HuelleroHttp())
   )
 }
