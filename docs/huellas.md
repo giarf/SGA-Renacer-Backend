@@ -24,7 +24,7 @@ la reemplaza. Eliminar una persona elimina sus huellas.
 | --- | --- | --- |
 | `HUELLERO_URL` | `https://huella.familiarenacer.cl` | URL base del servicio del lector |
 | `HUELLERO_TOKEN` | (vacío) | Si existe, se envía como `Authorization: Bearer …` |
-| `HUELLERO_TIMEOUT_SEGUNDOS` | `45` | Tiempo máximo para que la persona ponga el dedo |
+| `HUELLERO_TIMEOUT_SEGUNDOS` | `60` | Espera máxima del SGA; el lector corta a los 40 s |
 
 ## Rutas del SGA
 
@@ -43,19 +43,24 @@ Errores del lector: `503` sin conexión, `504` tiempo agotado, `422` si el
 lector rechaza la lectura (mensaje en `error`, se muestra al operador) y `502`
 si responde algo inválido.
 
-## Contrato que debe implementar el servicio del huellero
+## Servicio del huellero (laka)
 
-Todas las respuestas son JSON. Ante un error responder `{ "error": "mensaje" }`
-con un código 4xx (problema de lectura) o 5xx (falla del servicio).
+Corre en `laka` (`/root/huellas/api.py`, servicio `huellas-api`, puerto 67) y se
+publica en `huella.familiarenacer.cl` mediante Pangolin. La clave está en
+`/root/huellas/api.key` y debe coincidir con `HUELLERO_TOKEN`. Todas las rutas
+exigen `Authorization: Bearer CLAVE`.
 
-- `GET /api/estado` → `{ "lector": "DigitalPersona 4500U", "listo": true }`
-  (cualquier objeto; se reenvía al frontend).
-- `POST /api/capturar` con `{}` → espera el dedo y responde
-  `{ "plantilla": "<base64>", "formato": "ANSI_378_2004", "calidad": 85 }`.
-  `formato` y `calidad` son opcionales.
-- `POST /api/identificar` con
-  `{ "candidatos": [{ "id": 1, "plantilla": "<base64>", "formato": "…" }] }` →
-  espera el dedo, compara contra los candidatos y responde `{ "id": 1 }` con
-  el `id` del candidato que coincide, o `{ "id": null }` si no hay coincidencia.
+- `GET /api/estado` → `{ "lector": "DigitalPersona 4500U", "listo": true }`.
+- `POST /api/capturar` con `{}` → la persona pone y retira el mismo dedo cinco
+  veces; responde `{ "plantilla": "<base64>", "formato": "libfprint-uru4000" }`.
+  La plantilla no se guarda en laka.
+- `POST /api/identificar` con `{ "candidatos": [{ "id": 1, "plantilla": "<base64>" }] }`
+  → un toque; responde `{ "id": 1 }` o `{ "id": null }`.
 
-Ambas operaciones de lectura deben responder antes de `HUELLERO_TIMEOUT_SEGUNDOS`.
+Ambas aceptan `timeout` (2–120 s, 40 por defecto). Respuestas de error:
+`400` datos inválidos, `401` clave, `409` lector ocupado, `422` lectura fallida
+o sin dedo, `503` lector desconectado. Las plantillas son de libfprint: solo
+sirven con este lector y este driver.
+
+Las rutas antiguas (`/registros`, `/identificaciones`, `/personas`) siguen
+funcionando con la base local de laka, independiente del SGA.

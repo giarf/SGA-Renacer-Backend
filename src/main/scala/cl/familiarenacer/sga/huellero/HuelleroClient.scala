@@ -20,7 +20,7 @@ trait Huellero {
 class HuelleroHttp(
   baseUrl: String = sys.env.getOrElse("HUELLERO_URL", "https://huella.familiarenacer.cl"),
   token: Option[String] = sys.env.get("HUELLERO_TOKEN").filter(_.nonEmpty),
-  timeoutLectura: Duration = Duration.ofSeconds(sys.env.get("HUELLERO_TIMEOUT_SEGUNDOS").flatMap(_.toLongOption).getOrElse(45L))
+  timeoutLectura: Duration = Duration.ofSeconds(sys.env.get("HUELLERO_TIMEOUT_SEGUNDOS").flatMap(_.toLongOption).getOrElse(60L))
 ) extends Huellero {
   private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
   private val base = baseUrl.stripSuffix("/")
