@@ -26,7 +26,8 @@ class IngresosRoutes(
     categoria: Option[String],
     unidad: Option[String],
     cantidad: BigDecimal,
-    precio: BigDecimal
+    precio: BigDecimal,
+    codigoBarras: Option[String] = None
   )
   implicit val itemDonacionFormat: OFormat[ItemDonacionRequest] = Json.format[ItemDonacionRequest]
 
@@ -37,12 +38,42 @@ class IngresosRoutes(
   )
   implicit val registrarDonacionBienesFormat: OFormat[RegistrarDonacionBienesRequest] = Json.format[RegistrarDonacionBienesRequest]
 
+  /** Detalle de compra: los campos de DetalleIngresoRecurso más los datos para ubicar o crear el ítem. */
+  case class DetalleCompraRequest(
+    id: Int = 0,
+    ingresoId: Option[Int] = None,
+    itemCatalogoId: Option[Int] = None,
+    cantidad: Option[BigDecimal] = None,
+    precioUnitarioIngreso: Option[BigDecimal] = None,
+    codigoBarras: Option[String] = None,
+    nombre: Option[String] = None,
+    categoria: Option[String] = None,
+    unidad: Option[String] = None
+  )
+  // Acepta los nombres de DetalleIngresoRecurso y también los de donacion-bienes ("precio", "unidadMedidaEstandar").
+  implicit val detalleCompraReads: Reads[DetalleCompraRequest] = Reads { js =>
+    Json.using[Json.WithDefaultValues].reads[DetalleCompraRequest].reads(js).flatMap { d =>
+      for {
+        precio <- (js \ "precio").validateOpt[BigDecimal]
+        unidad <- (js \ "unidadMedidaEstandar").validateOpt[String]
+      } yield d.copy(precioUnitarioIngreso = d.precioUnitarioIngreso.orElse(precio), unidad = d.unidad.orElse(unidad))
+    }
+  }
+
   case class RegistrarCompraRequest(
     ingreso: IngresoRecurso,
     compra: IngresoCompra,
-    detalles: List[DetalleIngresoRecurso]
+    detalles: List[DetalleCompraRequest]
   )
-  implicit val registrarCompraFormat: OFormat[RegistrarCompraRequest] = Json.format[RegistrarCompraRequest]
+  // La lista de ítems puede venir como "detalles" (formato original) o "items" (igual que donacion-bienes).
+  implicit val registrarCompraReads: Reads[RegistrarCompraRequest] = Reads { js =>
+    for {
+      ingreso <- (js \ "ingreso").validate[IngresoRecurso]
+      compra <- (js \ "compra").validate[IngresoCompra]
+      detalles <- (js \ "detalles").validateOpt[List[DetalleCompraRequest]]
+      items <- (js \ "items").validateOpt[List[DetalleCompraRequest]]
+    } yield RegistrarCompraRequest(ingreso, compra, detalles.orElse(items).getOrElse(Nil))
+  }
 
   case class RegistrarPecuniarioRequest(
     ingreso: IngresoRecurso,
@@ -170,12 +201,15 @@ class IngresosRoutes(
           ),
           nombreItem = item.nombre,
           categoria = item.categoria,
-          unidadMedida = item.unidad
+          unidadMedida = item.unidad,
+          codigoBarras = item.codigoBarras
         )
       }
       val id = inventarioRepo.registrarDonacionCompleta(ingresoNormalizado, body.donacion, detallesInput)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Donación de bienes registrada exitosamente"), 201)
     } catch {
+      case e: CodigoBarrasDuplicadoException =>
+        respond(Json.obj("error" -> e.getMessage, "codigoBarras" -> e.codigo), 409)
       case e: IllegalArgumentException =>
         respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>
@@ -204,9 +238,26 @@ class IngresosRoutes(
     try {
       val body = Json.parse(request.text()).as[RegistrarCompraRequest]
       val ingresoNormalizado = normalizarIngreso(body.ingreso)
-      val id = donacionRepo.registrarCompra(ingresoNormalizado, body.compra, body.detalles)
+      val items = body.detalles.map { d =>
+        DetalleDonacionInput(
+          detalle = DetalleIngresoRecurso(
+            id = 0,
+            ingresoId = None,
+            itemCatalogoId = d.itemCatalogoId.filter(_ > 0),
+            cantidad = d.cantidad,
+            precioUnitarioIngreso = d.precioUnitarioIngreso
+          ),
+          nombreItem = d.nombre.getOrElse(""),
+          categoria = d.categoria,
+          unidadMedida = d.unidad,
+          codigoBarras = d.codigoBarras
+        )
+      }
+      val id = donacionRepo.registrarCompraConItems(ingresoNormalizado, body.compra, items)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Compra registrada exitosamente"), 201)
     } catch {
+      case e: CodigoBarrasDuplicadoException =>
+        respond(Json.obj("error" -> e.getMessage, "codigoBarras" -> e.codigo), 409)
       case e: IllegalArgumentException =>
         respond(Json.obj("error" -> e.getMessage), 400)
       case e: Exception =>

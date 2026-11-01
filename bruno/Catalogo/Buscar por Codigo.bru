@@ -1,0 +1,41 @@
+meta {
+  name: Buscar por Codigo
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/catalogo/codigo/7802095190016
+  body: none
+  auth: none
+}
+
+docs {
+  Busca un código de barras (EAN-8, UPC-A o EAN-13) en el catálogo local y, si no está, en Open Food Facts.
+  - 200 fuente "catalogo": item del catálogo, sugerencia null.
+  - 200 fuente "openfoodfacts": item null, sugerencia con nombre/marca/cantidad/categoria/imagenUrl (no se guarda).
+  - 404 si no está en ninguna parte o si Open Food Facts falla o tarda más de 4 s.
+  - 400 si el código es inválido (prueba con 7802095190017).
+}
+
+tests {
+  test("Status code is 200 or 404", function() {
+    expect([200, 404]).to.include(res.status);
+  });
+
+  test("Response follows the contract", function() {
+    if (res.status === 200) {
+      expect(["catalogo", "openfoodfacts"]).to.include(res.body.fuente);
+      if (res.body.fuente === "catalogo") {
+        expect(res.body.item.codigoBarras).to.equal("7802095190016");
+        expect(res.body.sugerencia).to.equal(null);
+      } else {
+        expect(res.body.item).to.equal(null);
+        expect(res.body.sugerencia.codigoBarras).to.equal("7802095190016");
+        expect(res.body.sugerencia.nombre).to.be.a("string");
+      }
+    } else {
+      expect(res.body.codigoBarras).to.equal("7802095190016");
+    }
+  });
+}

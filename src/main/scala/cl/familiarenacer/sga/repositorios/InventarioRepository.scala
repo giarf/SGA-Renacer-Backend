@@ -1,6 +1,8 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{DetalleIngresoRecurso, DetalleDonacionInput, IngresoDonacion, IngresoRecurso, ItemCatalogo}
+import cl.familiarenacer.sga.modelos.{CodigoBarras, CodigoBarrasDuplicadoException, DetalleIngresoRecurso, DetalleDonacionInput, IngresoDonacion, IngresoRecurso, ItemCatalogo, OrigenDatos}
+import java.time.LocalDate
+import scala.util.Using
 import io.getquill._
 
 /**
@@ -8,6 +10,110 @@ import io.getquill._
  */
 class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
+
+  /** Aplica la parte de esquema de catalogo-codigo-barras.sql (sin el backfill). */
+  def asegurarEsquemaCatalogo(): Unit = {
+    val stream = Option(getClass.getResourceAsStream("/catalogo-codigo-barras.sql"))
+      .getOrElse(throw new IllegalStateException("Falta catalogo-codigo-barras.sql"))
+    val sql = Using.resource(scala.io.Source.fromInputStream(stream, "UTF-8"))(_.mkString).split("-- BACKFILL")(0)
+    Using.resource(ctx.dataSource.getConnection) { conn =>
+      Using.resource(conn.createStatement())(_.execute(sql))
+    }
+    ()
+  }
+
+  // ===== Código de barras y precio de referencia =====
+
+  /** Valida y normaliza un código; lanza IllegalArgumentException si el formato o el verificador fallan. */
+  def validarCodigo(codigo: String): String =
+    CodigoBarras.normalizar(codigo).getOrElse(throw new IllegalArgumentException("Código de barras inválido"))
+
+  def buscarPorCodigo(codigo: String): Option[ItemCatalogo] =
+    ctx.run(query[ItemCatalogo].filter(_.codigoBarras.contains(lift(codigo)))).headOption
+
+  /** Lanza CodigoBarrasDuplicadoException si otro ítem (distinto de exceptoId) ya usa el código. */
+  def asegurarCodigoLibre(codigo: String, exceptoId: Int = 0): Unit =
+    if (ctx.run(query[ItemCatalogo].filter(i => i.codigoBarras.contains(lift(codigo)) && i.id != lift(exceptoId)).nonEmpty))
+      throw new CodigoBarrasDuplicadoException(codigo)
+
+  /**
+   * Precio de referencia = mediana del precio unitario de las compras no anuladas de los últimos 180 días,
+   * redondeada a pesos. Si no hay compras en ese rango, conserva el valor existente.
+   * Usa la conexión de la transacción en curso cuando se llama dentro de ctx.transaction.
+   */
+  def recalcularPrecioReferencia(itemId: Int): Long =
+    ctx.run(quote {
+      infix"""UPDATE item_catalogo ic
+        SET precio_referencia = m.mediana, precio_referencia_fecha = CURRENT_DATE
+        FROM (
+          SELECT round((percentile_cont(0.5) WITHIN GROUP (ORDER BY d.precio_unitario_ingreso))::numeric, 0) AS mediana
+          FROM detalle_ingreso_recurso d
+          JOIN ingreso_recurso ir ON ir.id = d.ingreso_id
+          JOIN ingreso_compra c ON c.ingreso_id = ir.id
+          WHERE d.item_catalogo_id = ${lift(itemId)}
+            AND d.precio_unitario_ingreso IS NOT NULL
+            AND lower(coalesce(ir.estado, '')) <> 'anulado'
+            AND ir.fecha >= CURRENT_DATE - 180
+          HAVING count(*) > 0
+        ) m
+        WHERE ic.id = ${lift(itemId)}""".as[Update[ItemCatalogo]]
+    })
+
+  /**
+   * Obtiene (con lock) o crea el ítem de un detalle de ingreso.
+   * 1) itemCatalogoId; si el ítem aún no tiene código, se le asigna el recibido.
+   * 2) codigoBarras; 3) nombre (sin tildes ni mayúsculas); 4) se crea con el código y el origen dado.
+   * Debe llamarse dentro de una transacción.
+   */
+  def resolverItem(input: DetalleDonacionInput, origen: String): Int = {
+    val codigo = input.codigoBarras.map(_.trim).filter(_.nonEmpty).map(validarCodigo)
+    val precio = input.detalle.precioUnitarioIngreso
+    def bloquear(id: Int) = ctx.run(query[ItemCatalogo].filter(_.id == lift(id)).forUpdate).headOption
+    def asignarCodigoSiFalta(item: ItemCatalogo): Int = {
+      codigo.filter(_ => item.codigoBarras.forall(_.isEmpty)).foreach { c =>
+        asegurarCodigoLibre(c, item.id)
+        ctx.run(query[ItemCatalogo].filter(_.id == lift(item.id)).update(_.codigoBarras -> lift(Option(c))))
+      }
+      item.id
+    }
+
+    input.detalle.itemCatalogoId.filter(_ > 0) match {
+      case Some(id) =>
+        asignarCodigoSiFalta(bloquear(id).getOrElse(throw new IllegalArgumentException(s"Item con ID $id no existe")))
+      case None =>
+        val nombre = input.nombreItem.trim
+        val porCodigo = codigo.flatMap(c => ctx.run(query[ItemCatalogo].filter(_.codigoBarras.contains(lift(c))).forUpdate).headOption)
+        def porNombre = Option(nombre).filter(_.nonEmpty).flatMap { n =>
+          ctx.run(
+            query[ItemCatalogo]
+              .filter(i =>
+                infix"unaccent(lower(${i.nombre}))".as[Option[String]] ==
+                infix"unaccent(lower(${lift(Option(n))}))".as[Option[String]]
+              )
+              .forUpdate
+          ).headOption
+        }
+        porCodigo.map(_.id).orElse(porNombre.map(asignarCodigoSiFalta)).getOrElse {
+          if (nombre.isEmpty)
+            throw new IllegalArgumentException("Cada ítem debe incluir itemCatalogoId, un código de barras registrado o un nombre.")
+          codigo.foreach(c => asegurarCodigoLibre(c))
+          val nuevoItem = ItemCatalogo(
+            id = 0,
+            nombre = Some(nombre),
+            categoria = input.categoria.map(_.trim).filter(_.nonEmpty),
+            unidadMedidaEstandar = input.unidadMedida.map(_.trim).filter(_.nonEmpty),
+            stockActual = Some(BigDecimal(0)),
+            valorTotalStock = Some(BigDecimal(0)),
+            precioPromedioPonderado = Some(BigDecimal(0)),
+            precioReferencia = precio, // Referencia inicial
+            codigoBarras = codigo,
+            origenDatos = Some(origen),
+            precioReferenciaFecha = precio.map(_ => LocalDate.now())
+          )
+          ctx.run(query[ItemCatalogo].insertValue(lift(nuevoItem)).returningGenerated(_.id))
+        }
+    }
+  }
 
   // ===== Donación de Bienes (con upsert de catálogo y recálculo de PPP) =====
 
@@ -31,47 +137,8 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         
         if (cantidad <= 0) throw new IllegalArgumentException(s"Cantidad inválida para el ítem '${itemInput.nombreItem}'")
 
-        // 2. Obtener o Crear Ítem con LOCK
-        // Si viene itemCatalogoId > 0, usarlo directamente
-        // Si viene 0 o None, buscar por nombre (case insensitive y sin acentos)
-        
-        val itemId = detalle.itemCatalogoId match {
-          case Some(id) if id > 0 =>
-            // ID proporcionado, verificar que exista
-            val itemExistente = ctx.run(query[ItemCatalogo].filter(_.id == lift(id)).forUpdate).headOption
-            itemExistente.map(_.id).getOrElse(throw new IllegalArgumentException(s"Item con ID $id no existe"))
-            
-          case _ =>
-            // No viene ID, buscar o crear por nombre
-            val nombreBuscar = itemInput.nombreItem.trim
-            
-            // Usamos unaccent de PostgreSQL para comparación sin acentos
-            val itemExistente = ctx.run(
-               query[ItemCatalogo]
-                 .filter(i => 
-                   infix"unaccent(lower(${i.nombre}))".as[Option[String]] == 
-                   infix"unaccent(lower(${lift(Option(nombreBuscar))}))".as[Option[String]]
-                 )
-                 .forUpdate // Pessimistic Locking
-            ).headOption
-
-            itemExistente match {
-              case Some(item) => item.id
-              case None =>
-                // Crear nuevo ítem
-                val nuevoItem = ItemCatalogo(
-                  id = 0,
-                  nombre = Some(itemInput.nombreItem), // Nombre original
-                  categoria = itemInput.categoria,
-                  unidadMedidaEstandar = itemInput.unidadMedida,
-                  stockActual = Some(BigDecimal(0)),
-                  valorTotalStock = Some(BigDecimal(0)),
-                  precioPromedioPonderado = Some(BigDecimal(0)),
-                  precioReferencia = Some(precio) // Referencia inicial
-                )
-                ctx.run(query[ItemCatalogo].insertValue(lift(nuevoItem)).returningGenerated(_.id))
-            }
-        }
+        // 2. Obtener o crear el ítem (por ID, código de barras o nombre) con lock pesimista.
+        val itemId = resolverItem(itemInput, OrigenDatos.Donacion)
 
         // 3. Recalcular Stock y PPP
         // Ahora recuperamos el item (ya sea existente o recién creado) para actualizar stock
@@ -161,13 +228,17 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * @param item Ítem a registrar (sin ID, se genera automáticamente).
    * @return ID del ítem creado.
    */
-  def registrarItem(item: ItemCatalogo): Int = {
+  def registrarItem(item: ItemCatalogo): Int = ctx.transaction {
+    item.codigoBarras.foreach(c => asegurarCodigoLibre(c))
     ctx.run(
       query[ItemCatalogo].insert(
         _.nombre -> lift(item.nombre.map(_.trim)),
         _.categoria -> lift(item.categoria.map(_.trim)),
         _.unidadMedidaEstandar -> lift(item.unidadMedidaEstandar.map(_.trim)),
         _.precioReferencia -> lift(item.precioReferencia),
+        _.precioReferenciaFecha -> lift(item.precioReferencia.map(_ => LocalDate.now())),
+        _.codigoBarras -> lift(item.codigoBarras),
+        _.origenDatos -> lift(item.origenDatos.orElse(Option(OrigenDatos.Manual))),
         _.stockActual -> lift(Option(BigDecimal(0))),
         _.precioPromedioPonderado -> lift(Option(BigDecimal(0))),
         _.valorTotalStock -> lift(Option(BigDecimal(0)))
@@ -192,18 +263,32 @@ class InventarioRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     nombre: Option[String],
     categoria: Option[String],
     unidadMedida: Option[String],
-    precioReferencia: Option[BigDecimal]
-  ): Long = {
-    ctx.run(
-      query[ItemCatalogo]
-        .filter(_.id == lift(id))
-        .update(
-          _.nombre -> lift(nombre.map(_.trim)),
-          _.categoria -> lift(categoria.map(_.trim)),
-          _.unidadMedidaEstandar -> lift(unidadMedida.map(_.trim)),
-          _.precioReferencia -> lift(precioReferencia)
+    precioReferencia: Option[BigDecimal],
+    codigoBarras: Option[Option[String]] = None
+  ): Long = ctx.transaction {
+    ctx.run(query[ItemCatalogo].filter(_.id == lift(id)).forUpdate).headOption match {
+      case None => 0L
+      case Some(actual) =>
+        // codigoBarras: None = no viene en el JSON (se conserva), Some(None) = se borra.
+        val nuevoCodigo = codigoBarras.getOrElse(actual.codigoBarras)
+        nuevoCodigo.foreach(c => asegurarCodigoLibre(c, id))
+        val fechaPrecio =
+          if (precioReferencia.map(_.bigDecimal.stripTrailingZeros) == actual.precioReferencia.map(_.bigDecimal.stripTrailingZeros))
+            actual.precioReferenciaFecha
+          else precioReferencia.map(_ => LocalDate.now())
+        ctx.run(
+          query[ItemCatalogo]
+            .filter(_.id == lift(id))
+            .update(
+              _.nombre -> lift(nombre.map(_.trim)),
+              _.categoria -> lift(categoria.map(_.trim)),
+              _.unidadMedidaEstandar -> lift(unidadMedida.map(_.trim)),
+              _.precioReferencia -> lift(precioReferencia),
+              _.precioReferenciaFecha -> lift(fechaPrecio),
+              _.codigoBarras -> lift(nuevoCodigo)
+            )
         )
-    )
+    }
   }
 
   /**

@@ -1,6 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
-import cl.familiarenacer.sga.modelos.{IngresoDetalle, IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, DetalleEgresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo, EgresoRecurso, EgresoPecuniario}
+import cl.familiarenacer.sga.modelos.{IngresoDetalle, IngresoDonacion, IngresoPecuniario, IngresoRecurso, IngresoCompra, IngresoSubvencion, DetalleIngresoRecurso, DetalleEgresoRecurso, CuentaFinanciera, IngresoHistorial, ItemCatalogo, EgresoRecurso, EgresoPecuniario, DetalleDonacionInput, OrigenDatos}
 import io.getquill._
 import java.sql.DriverManager
 
@@ -12,6 +12,7 @@ import java.sql.DriverManager
  */
 class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   import ctx._
+  private lazy val inventario = new InventarioRepository(ctx)
 
   asegurarColumnasEgresos()
 
@@ -73,7 +74,14 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    *
    * @return El ID del ingreso generado.
    */
-  def registrarCompra(ingreso: IngresoRecurso, compra: IngresoCompra, detalles: List[DetalleIngresoRecurso]): Long = {
+  def registrarCompra(ingreso: IngresoRecurso, compra: IngresoCompra, detalles: List[DetalleIngresoRecurso]): Long =
+    registrarCompraConItems(ingreso, compra, detalles.map(d => DetalleDonacionInput(d, "", None, None)))
+
+  /**
+   * Registra una compra. Cada ítem se resuelve por itemCatalogoId, código de barras o nombre (y se crea si no existe).
+   * Al final recalcula, en la misma transacción, el precio de referencia (mediana 180 días) de cada ítem comprado.
+   */
+  def registrarCompraConItems(ingreso: IngresoRecurso, compra: IngresoCompra, items: List[DetalleDonacionInput]): Long = {
     ctx.transaction {
       // 1. Insertar el ingreso base
       val ingresoId = ctx.run(
@@ -89,49 +97,50 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       )
 
       // 3. Insertar los detalles de los ítems
-      if (detalles.nonEmpty) {
-        detalles.foreach { detalle =>
-          val itemId = detalle.itemCatalogoId.filter(_ > 0)
-            .getOrElse(throw new IllegalArgumentException("Cada detalle de compra debe incluir itemCatalogoId válido."))
-          val cantidad = detalle.cantidad.getOrElse(BigDecimal(0))
-          val precio = detalle.precioUnitarioIngreso.getOrElse(BigDecimal(0))
+      val itemsComprados = items.map { input =>
+        val detalle = input.detalle
+        val itemId = inventario.resolverItem(input, OrigenDatos.Compra)
+        val cantidad = detalle.cantidad.getOrElse(BigDecimal(0))
+        val precio = detalle.precioUnitarioIngreso.getOrElse(BigDecimal(0))
 
-          if (cantidad <= 0) throw new IllegalArgumentException(s"Cantidad inválida para item $itemId.")
-          if (precio < 0) throw new IllegalArgumentException(s"Precio unitario inválido para item $itemId.")
+        if (cantidad <= 0) throw new IllegalArgumentException(s"Cantidad inválida para item $itemId.")
+        if (precio < 0) throw new IllegalArgumentException(s"Precio unitario inválido para item $itemId.")
 
-          // Lock pesimista para evitar condiciones de carrera en stock/PPP.
-          val itemActual = ctx.run(
-            query[ItemCatalogo].filter(_.id == lift(itemId)).forUpdate
-          ).headOption.getOrElse(throw new IllegalArgumentException(s"Item con ID $itemId no existe"))
+        // Lock pesimista para evitar condiciones de carrera en stock/PPP.
+        val itemActual = ctx.run(
+          query[ItemCatalogo].filter(_.id == lift(itemId)).forUpdate
+        ).headOption.getOrElse(throw new IllegalArgumentException(s"Item con ID $itemId no existe"))
 
-          val stockActual = itemActual.stockActual.getOrElse(BigDecimal(0))
-          val valorTotalActual = itemActual.valorTotalStock.getOrElse(BigDecimal(0))
-          val nuevoStock = stockActual + cantidad
-          val nuevoValorTotal = valorTotalActual + (cantidad * precio)
-          val nuevoPPP =
-            if (nuevoStock > 0) (nuevoValorTotal / nuevoStock).setScale(4, BigDecimal.RoundingMode.HALF_UP)
-            else BigDecimal(0)
+        val stockActual = itemActual.stockActual.getOrElse(BigDecimal(0))
+        val valorTotalActual = itemActual.valorTotalStock.getOrElse(BigDecimal(0))
+        val nuevoStock = stockActual + cantidad
+        val nuevoValorTotal = valorTotalActual + (cantidad * precio)
+        val nuevoPPP =
+          if (nuevoStock > 0) (nuevoValorTotal / nuevoStock).setScale(4, BigDecimal.RoundingMode.HALF_UP)
+          else BigDecimal(0)
 
-          ctx.run(
-            query[ItemCatalogo]
-              .filter(_.id == lift(itemId))
-              .update(
-                _.stockActual -> lift(Option(nuevoStock)),
-                _.valorTotalStock -> lift(Option(nuevoValorTotal)),
-                _.precioPromedioPonderado -> lift(Option(nuevoPPP))
-              )
-          )
-
-          ctx.run(
-            query[DetalleIngresoRecurso].insert(
-              _.ingresoId             -> lift(Option(ingresoId)),
-              _.itemCatalogoId        -> lift(Option(itemId)),
-              _.cantidad              -> lift(detalle.cantidad),
-              _.precioUnitarioIngreso -> lift(detalle.precioUnitarioIngreso)
+        ctx.run(
+          query[ItemCatalogo]
+            .filter(_.id == lift(itemId))
+            .update(
+              _.stockActual -> lift(Option(nuevoStock)),
+              _.valorTotalStock -> lift(Option(nuevoValorTotal)),
+              _.precioPromedioPonderado -> lift(Option(nuevoPPP))
             )
+        )
+
+        ctx.run(
+          query[DetalleIngresoRecurso].insert(
+            _.ingresoId             -> lift(Option(ingresoId)),
+            _.itemCatalogoId        -> lift(Option(itemId)),
+            _.cantidad              -> lift(detalle.cantidad),
+            _.precioUnitarioIngreso -> lift(detalle.precioUnitarioIngreso)
           )
-        }
+        )
+        itemId
       }
+
+      itemsComprados.distinct.foreach(inventario.recalcularPrecioReferencia)
 
       // 4. Registrar egreso pecuniario espejo de la compra y descontar saldo.
       registrarEgresoPecuniarioPorCompra(ingresoId, ingreso, compra)
@@ -372,6 +381,9 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             _.precioUnitarioIngreso -> lift(normalizado.precioUnitarioIngreso)
           ))
         }
+
+        val esCompra = ctx.run(query[IngresoCompra].filter(_.ingresoId == lift(Option(id))).nonEmpty)
+        if (esCompra) (detallesActuales ++ detalles).flatMap(_.itemCatalogoId).distinct.foreach(inventario.recalcularPrecioReferencia)
       }
 
       filas
@@ -401,7 +413,10 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
       }
       detalle.detalles.foreach(d => aplicarDiferenciaIngreso(d, revertir = true))
 
-      ctx.run(query[IngresoRecurso].filter(_.id == lift(id)).update(_.estado -> lift(Option("Anulado")))) > 0
+      val anulado = ctx.run(query[IngresoRecurso].filter(_.id == lift(id)).update(_.estado -> lift(Option("Anulado")))) > 0
+      // La compra anulada deja de contar para la mediana del precio de referencia.
+      if (detalle.compra.isDefined) detalle.detalles.flatMap(_.itemCatalogoId).distinct.foreach(inventario.recalcularPrecioReferencia)
+      anulado
     }
   }
 

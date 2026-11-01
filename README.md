@@ -404,10 +404,18 @@ curl -X POST http://localhost:8080/api/ingresos/donacion-bienes \
         "unidad": "Unidades",
         "cantidad": 10,
         "precio": 3000
+      },
+      {
+        "nombre": "Tortilla de avena Carozzi",
+        "codigoBarras": "7802095190016",
+        "cantidad": 4,
+        "precio": 0
       }
     ]
   }'
 ```
+
+> `codigoBarras` es opcional por ítem. Con `itemCatalogoId` se usa ese ítem (y se le asigna el código si aún no tiene); sin él, se busca primero por código y luego por nombre, y si no existe se crea con el código (`origenDatos = "donacion"`). Las donaciones no cambian el precio de referencia de un ítem existente.
 
 <details>
 <summary>Respuesta exitosa — <code>201</code></summary>
@@ -449,10 +457,20 @@ curl -X POST http://localhost:8080/api/ingresos/compra \
         "itemCatalogoId": 5,
         "cantidad": 20,
         "precioUnitarioIngreso": 6000
+      },
+      {
+        "codigoBarras": "7809591400144",
+        "nombre": "Leche entera 1 L",
+        "categoria": "Alimento",
+        "unidad": "Litros",
+        "cantidad": 12,
+        "precioUnitarioIngreso": 990
       }
     ]
   }'
 ```
+
+> Cada detalle acepta `itemCatalogoId`, o bien `codigoBarras` y/o `nombre` (+ `categoria`, `unidad` opcionales) para ubicar o crear el ítem (`origenDatos = "compra"`), con las mismas reglas que la donación de bienes. También se aceptan los nombres de donación de bienes: la lista como `items` (en vez de `detalles`) y `precio` / `unidadMedidaEstandar` como alias de `precioUnitarioIngreso` / `unidad`. Al registrar, anular o editar una compra se recalcula en la misma transacción el **precio de referencia** de cada ítem: mediana de `precioUnitarioIngreso` de las compras no anuladas de los últimos 180 días, redondeada a pesos. Sin compras en ese rango se conserva el valor existente.
 
 <details>
 <summary>Respuesta exitosa — <code>201</code></summary>
@@ -610,6 +628,21 @@ Gestión de ítems de inventario, búsqueda y utilitarios.
 | `GET`  | `/api/catalogo/buscar?q=...`           | Buscar ítems por nombre     |
 | `GET`  | `/api/catalogo/utilitarios`            | Categorías + unidades       |
 | `GET`  | `/api/catalogo/utilitarios/categorias` | Solo categorías únicas      |
+| `GET`  | `/api/catalogo/codigo/:codigo`         | Buscar por código de barras (catálogo local y Open Food Facts) |
+
+Campos de `ItemCatalogo` además de los anteriores (siempre presentes, `null` si no hay dato):
+
+| Campo                   | Tipo                 | Descripción |
+|-------------------------|----------------------|-------------|
+| `codigoBarras`          | `string \| null`     | EAN-8, UPC-A o EAN-13, solo dígitos, único en el catálogo |
+| `origenDatos`           | `string \| null`     | `manual`, `openfoodfacts`, `compra` o `donacion` |
+| `precioReferenciaFecha` | `string \| null`     | `yyyy-mm-dd` en que se calculó o fijó el precio de referencia |
+
+`POST /api/catalogo` acepta `codigoBarras` y `origenDatos` opcionales; `PUT /api/catalogo/:id` acepta `codigoBarras` (ausente = se conserva, `null` o `""` = se borra). Código con dígito verificador inválido → `400`; código ya usado por otro ítem → `409 {"error": "..."}`.
+
+**Precio de referencia:** mediana del precio unitario de las compras no anuladas de los últimos 180 días (pesos, sin decimales). Se recalcula con cada compra; si no hay compras recientes se mantiene el valor manual o el de la donación que creó el ítem.
+
+**Migración:** `src/main/resources/catalogo-codigo-barras.sql`. El backend aplica al arrancar la parte de esquema (columnas e índice único parcial); el bloque `-- BACKFILL` (recalcular precios con la mediana y marcar `origen_datos = 'manual'`) se ejecuta a mano una vez con `psql -f`.
 
 #### Ejemplo — `POST /api/catalogo`
 
@@ -620,7 +653,9 @@ curl -X POST http://localhost:8080/api/catalogo \
     "nombre": "Arroz Grado 2",
     "categoria": "Alimentos",
     "unidadMedidaEstandar": "Kilos",
-    "precioReferencia": 1200
+    "precioReferencia": 1200,
+    "codigoBarras": "7802095190016",
+    "origenDatos": "openfoodfacts"
   }'
 ```
 
@@ -636,6 +671,36 @@ curl -X POST http://localhost:8080/api/catalogo \
 }
 ```
 </details>
+
+#### Ejemplo — `GET /api/catalogo/codigo/:codigo`
+
+Busca primero en el catálogo local y luego en [Open Food Facts](https://world.openfoodfacts.org) (timeout 4 s). La sugerencia **no se guarda**: se guarda cuando el usuario confirma, con `POST /api/catalogo` o al registrar la compra/donación con ese código.
+
+```bash
+curl http://localhost:8080/api/catalogo/codigo/7802095190016
+```
+
+| Caso | Respuesta |
+|------|-----------|
+| Está en el catálogo | `200 {"fuente": "catalogo", "item": ItemCatalogo, "sugerencia": null}` |
+| Está en Open Food Facts | `200 {"fuente": "openfoodfacts", "item": null, "sugerencia": {"codigoBarras", "nombre", "marca", "cantidad", "categoria", "imagenUrl"}}` |
+| No está en ninguno, u OFF falla o tarda | `404 {"error": "Producto no encontrado", "codigoBarras": "..."}` |
+| Largo distinto de 8/12/13 o verificador incorrecto | `400 {"error": "Código de barras inválido"}` |
+
+```json
+{
+  "fuente": "openfoodfacts",
+  "item": null,
+  "sugerencia": {
+    "codigoBarras": "7802095190016",
+    "nombre": "Tortilla de avena Carozzi",
+    "marca": "Carozzi",
+    "cantidad": null,
+    "categoria": "Breads",
+    "imagenUrl": "https://images.openfoodfacts.org/images/products/780/209/519/0016/front_en.7.400.jpg"
+  }
+}
+```
 
 #### Ejemplo — `PUT /api/catalogo/:id`
 

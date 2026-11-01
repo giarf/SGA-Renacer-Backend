@@ -31,8 +31,8 @@ class SearchIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
           s.execute("CREATE TABLE institucion(entidad_id INT, razon_social TEXT, nombre_fantasia TEXT)")
           s.execute("INSERT INTO entidad VALUES (1, '12.345.678-K', 'PersonaNatural', NULL), (2, '23456789k', 'PersonaNatural', NULL), (3, NULL, 'PersonaNatural', NULL), (4, NULL, 'Institucion', NULL), (5, NULL, 'PersonaNatural', NULL)")
           s.execute("INSERT INTO persona_natural VALUES (1, 'Gabriel Inti Alejandro', 'Rojas Ferrada', NULL), (2, 'María José', 'Pérez', NULL), (3, 'Gabriela', 'Aros', NULL), (5, 'Valeria', 'Robles', NULL)")
-          s.execute("CREATE TABLE item_catalogo(id INT PRIMARY KEY, nombre TEXT, categoria TEXT, unidad_medida_estandar TEXT, stock_actual NUMERIC, valor_total_stock NUMERIC, precio_promedio_ponderado NUMERIC, precio_referencia NUMERIC)")
-          s.execute("INSERT INTO item_catalogo VALUES (1, 'Manta térmica', 'Ropa de abrigo', NULL, 0, 0, 0, 0)")
+          s.execute("CREATE TABLE item_catalogo(id INT PRIMARY KEY, nombre TEXT, categoria TEXT, unidad_medida_estandar TEXT, stock_actual NUMERIC, valor_total_stock NUMERIC, precio_promedio_ponderado NUMERIC, precio_referencia NUMERIC, codigo_barras TEXT, origen_datos TEXT, precio_referencia_fecha DATE)")
+          s.execute("INSERT INTO item_catalogo VALUES (1, 'Manta térmica', 'Ropa de abrigo', NULL, 0, 0, 0, 0, NULL, NULL, NULL)")
           s.execute("ALTER TABLE persona_natural ADD COLUMN genero TEXT, ADD COLUMN fecha_nacimiento DATE, ADD COLUMN foto_url TEXT")
           s.execute("INSERT INTO institucion VALUES (4, 'Fundación María del Sur', 'Casa Abierta')")
         }

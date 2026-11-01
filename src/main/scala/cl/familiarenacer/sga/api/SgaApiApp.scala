@@ -17,6 +17,7 @@ object SgaApiApp extends cask.Main {
   entidadRepo.asegurarColumnasFotosPersonas()
   val donacionRepo = new DonacionRepository(DB.ctx)
   val inventarioRepo = new InventarioRepository(DB.ctx)
+  inventarioRepo.asegurarEsquemaCatalogo()
   val institucionRepo = new InstitucionRepository(DB.ctx)
   val rolesRepo = new RolesRepository(DB.ctx)
   val familiaRepo = new FamiliaRepository(DB.ctx)

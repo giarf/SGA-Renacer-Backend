@@ -19,6 +19,11 @@ body:json {
   }
 }
 
+docs {
+  Acepta "codigoBarras" (EAN-8/UPC-A/EAN-13) y "origenDatos" ("manual" | "openfoodfacts" | "compra" | "donacion") opcionales.
+  Código inválido -> 400; código ya usado por otro ítem -> 409.
+}
+
 script:pre-request {
   const uniqueId = Math.floor(Math.random() * 100000);
   bru.setVar("uniqueId", uniqueId);

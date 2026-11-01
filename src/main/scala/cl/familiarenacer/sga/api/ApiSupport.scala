@@ -94,5 +94,15 @@ trait ApiSupport {
 
     base ++ fechaJson ++ montoJson ++ estadoJson ++ descJson
   }
-  implicit val itemCatalogoFormat: OFormat[ItemCatalogo] = Json.format[ItemCatalogo]
+  // Los campos nuevos (codigoBarras, origenDatos, precioReferenciaFecha) se escriben siempre, con null si faltan.
+  implicit val itemCatalogoFormat: OFormat[ItemCatalogo] = {
+    val base = Json.using[Json.WithDefaultValues].format[ItemCatalogo]
+    OFormat(base, OWrites[ItemCatalogo] { item =>
+      base.writes(item) ++ Json.obj(
+        "codigoBarras" -> item.codigoBarras,
+        "origenDatos" -> item.origenDatos,
+        "precioReferenciaFecha" -> item.precioReferenciaFecha
+      )
+    })
+  }
 }

@@ -20,6 +20,11 @@ body:json {
   }
 }
 
+docs {
+  Acepta "codigoBarras" opcional: ausente = se conserva, null o "" = se borra, texto = se valida (EAN-8/UPC-A/EAN-13).
+  Código inválido -> 400; código usado por otro ítem -> 409.
+}
+
 script:pre-request {
   const uniqueId = Math.floor(Math.random() * 100000);
   bru.setVar("uniqueId", uniqueId);
