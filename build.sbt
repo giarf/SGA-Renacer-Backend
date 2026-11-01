@@ -11,7 +11,8 @@ lazy val root = (project in file("."))
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "ch.qos.logback" % "logback-classic" % "1.5.32",
       "org.scalameta" %% "munit" % "1.2.2" % Test,
-      "com.lihaoyi" %% "cask" % "0.11.3"
+      "com.lihaoyi" %% "cask" % "0.11.3",
+      "com.machinezoo.sourceafis" % "sourceafis" % "3.18.1"
     )
   )
 

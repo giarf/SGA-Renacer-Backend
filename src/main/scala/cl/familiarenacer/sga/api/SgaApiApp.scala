@@ -34,6 +34,13 @@ object SgaApiApp extends cask.Main {
   campanaRepo.asegurarEsquema()
   val apoderadoRepo = new ApoderadoRepository()
   val huellaRepo = new HuellaRepository()
+  val huellaMatcher = new cl.familiarenacer.sga.huellero.HuellaMatcher()
+  // Las plantillas se cargan en memoria al arrancar; si el esquema de huellas aún no existe, el resto del API sigue funcionando.
+  try {
+    huellaMatcher.cargar(huellaRepo.tomas())
+    println(s"Huellas en memoria: ${huellaMatcher.total} tomas (umbral ${huellaMatcher.umbral})")
+  } catch { case e: java.sql.SQLException => println(s"No se pudieron cargar las huellas: ${e.getMessage}") }
+  new Thread(() => huellaMatcher.calentar(), "huellas-calentar").start()
 
   // Composición de Rutas
   val allRoutes = Seq(
@@ -52,6 +59,6 @@ object SgaApiApp extends cask.Main {
     new AsistenciaRoutes(asistenciaRepo),
     new CampanasRoutes(campanaRepo),
     new ApoderadosRoutes(apoderadoRepo),
-    new HuellasRoutes(huellaRepo, new cl.familiarenacer.sga.huellero.HuelleroHttp())
+    new HuellasRoutes(huellaRepo, new cl.familiarenacer.sga.huellero.HuelleroHttp(), huellaMatcher, asistenciaRepo)
   )
 }

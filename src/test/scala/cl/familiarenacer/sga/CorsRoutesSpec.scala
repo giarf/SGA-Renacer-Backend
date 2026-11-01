@@ -15,7 +15,7 @@ class CorsRoutesSpec extends AnyFunSuite with BeforeAndAfterAll {
       new RolesRoutes(null), new FamiliasRoutes(null), new EtiquetasRoutes(null),
       new UbicacionesRoutes(null), new IngresosRoutes(null, null), new EgresosRoutes(null),
       new CatalogoRoutes(null), new SolicitudesRoutes(null), new CuentasRoutes(null), new AsistenciaRoutes(null), new CampanasRoutes(null),
-      new HuellasRoutes(null, null)
+      new HuellasRoutes(null, null, null, null)
     )
   }
   private val server = io.undertow.Undertow.builder().addHttpListener(0, "127.0.0.1").setHandler(app.defaultHandler).build()

@@ -1,5 +1,6 @@
 package cl.familiarenacer.sga.repositorios
 
+import cl.familiarenacer.sga.huellero.HuellaMatcher
 import cl.familiarenacer.sga.modelos._
 import java.sql.{Connection, ResultSet}
 import scala.collection.mutable.ListBuffer
@@ -27,15 +28,44 @@ class HuellaRepository(openConnection: () => Connection = () => DB.ctx.dataSourc
     query(c, "SELECT id, persona_id, dedo, formato, calidad, registrada FROM persona_huella WHERE persona_id = ? ORDER BY id", personaId)(readHuella)
   }
 
-  /** Reemplaza la huella del mismo dedo si ya existía. */
-  def guardar(personaId: Int, dedo: String, captura: CapturaHuella): HuellaRegistrada = connection { c =>
+  private def existePersona(c: Connection, personaId: Int): Unit =
     if (query(c, "SELECT 1 FROM persona_natural WHERE entidad_id = ?", personaId)(_.getInt(1)).isEmpty)
       throw HuellaError(404, "La persona no existe.")
-    query(c, """INSERT INTO persona_huella(persona_id, dedo, plantilla, formato, calidad) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT (persona_id, dedo) DO UPDATE SET plantilla = EXCLUDED.plantilla, formato = EXCLUDED.formato,
-      calidad = EXCLUDED.calidad, registrada = CURRENT_TIMESTAMP
-      RETURNING id, persona_id, dedo, formato, calidad, registrada""",
-      personaId, dedo, captura.plantilla, captura.formato, captura.calidad.map(Int.box).orNull)(readHuella).head
+
+  /** Reserva la fila del dedo (persona, dedo) para obtener su huella_id. Devuelve (id, creada). */
+  def reservar(personaId: Int, dedo: String): (Int, Boolean) = connection { c =>
+    existePersona(c, personaId)
+    query(c, """INSERT INTO persona_huella(persona_id, dedo, formato) VALUES (?, ?, ?)
+      ON CONFLICT (persona_id, dedo) DO UPDATE SET dedo = EXCLUDED.dedo
+      RETURNING id, (xmax = 0) AS creada""", personaId, dedo, HuellaMatcher.Formato)(rs => (rs.getInt(1), rs.getBoolean(2))).head
+  }
+
+  /** Reemplaza todas las tomas del dedo en una transacción; calidad = menor número de minucias. */
+  def guardarTomas(huellaId: Int, tomas: Seq[(Int, Array[Byte], Int)]): HuellaRegistrada = connection { c =>
+    c.setAutoCommit(false)
+    try {
+      Using.resource(c.prepareStatement("DELETE FROM persona_huella_toma WHERE huella_id = ?")) { ps => ps.setInt(1, huellaId); ps.executeUpdate() }
+      Using.resource(c.prepareStatement("INSERT INTO persona_huella_toma(huella_id, toma, plantilla, minucias) VALUES (?, ?, ?, ?)")) { ps =>
+        tomas.foreach { case (n, bytes, minucias) =>
+          ps.setInt(1, huellaId); ps.setInt(2, n); ps.setBytes(3, bytes); ps.setInt(4, minucias); ps.addBatch()
+        }
+        ps.executeBatch()
+      }
+      val huella = query(c, """UPDATE persona_huella SET formato = ?, calidad = ?, registrada = CURRENT_TIMESTAMP WHERE id = ?
+        RETURNING id, persona_id, dedo, formato, calidad, registrada""",
+        HuellaMatcher.Formato, Int.box(tomas.map(_._3).min), huellaId)(readHuella).headOption
+        .getOrElse(throw HuellaError(404, "La huella ya no existe."))
+      c.commit()
+      huella
+    } catch { case e: Throwable => c.rollback(); throw e }
+    finally c.setAutoCommit(true)
+  }
+
+  /** Borra la fila reservada si nunca llegó a tener tomas (registro fallido de un dedo nuevo). */
+  def descartarSinTomas(huellaId: Int): Unit = connection { c =>
+    Using.resource(c.prepareStatement("DELETE FROM persona_huella h WHERE id = ? AND NOT EXISTS (SELECT 1 FROM persona_huella_toma t WHERE t.huella_id = h.id)")) { ps =>
+      ps.setInt(1, huellaId); ps.executeUpdate()
+    }
   }
 
   def eliminar(personaId: Int, huellaId: Int): Unit = connection { c =>
@@ -45,11 +75,16 @@ class HuellaRepository(openConnection: () => Connection = () => DB.ctx.dataSourc
     }
   }
 
-  def plantillas(): List[PlantillaHuella] = connection { c =>
-    query(c, "SELECT id, persona_id, plantilla, formato FROM persona_huella ORDER BY id") { rs =>
-      PlantillaHuella(rs.getInt("id"), rs.getInt("persona_id"), rs.getString("plantilla"), rs.getString("formato"))
+  def tomas(): List[TomaGuardada] = connection { c =>
+    query(c, """SELECT t.huella_id, h.persona_id, t.toma, t.plantilla, t.minucias FROM persona_huella_toma t
+      JOIN persona_huella h ON h.id = t.huella_id ORDER BY t.huella_id, t.toma""") { rs =>
+      TomaGuardada(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getBytes(4), rs.getInt(5))
     }
   }
+
+  def tomasDe(huellaId: Int): List[TomaGuardada] = tomas().filter(_.huellaId == huellaId)
+
+  def huellas(): List[(Int, Int)] = connection { c => query(c, "SELECT id, persona_id FROM persona_huella ORDER BY id")(rs => (rs.getInt(1), rs.getInt(2))) }
 
   def persona(huellaId: Int): Option[PersonaIdentificada] = connection { c =>
     query(c, """SELECT p.entidad_id, p.nombres, p.apellidos, e.rut, h.dedo FROM persona_huella h

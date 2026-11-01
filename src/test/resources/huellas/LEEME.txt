@@ -1,0 +1,2 @@
+Imágenes de prueba de SourceAFIS for Java (https://github.com/robertvazan/sourceafis-java), Apache License 2.0.
+probe y matching son el mismo dedo; nonmatching es otro dedo. 500 dpi.
