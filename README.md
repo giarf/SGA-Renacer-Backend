@@ -995,6 +995,45 @@ src/main/scala/cl/familiarenacer/sga/
 
 ## 🔐 Seguridad
 
+### Autenticación con Authentik
+
+Toda ruta exige `Authorization: Bearer <token>` con el token de acceso que el frontend recibe de Authentik (proveedor `sga-renacer`). El backend verifica firma RS256 contra el JWKS del proveedor, emisor, audiencia (`sga-renacer-frontend`) y vencimiento. Reglas en `auth/Autenticacion.scala`:
+
+| Requisito | Rutas |
+|-----------|-------|
+| Pública | `OPTIONS`; `GET /api/personas/:id/foto` y `GET /api/ingresos/compra/boleta/:id/download` (se cargan como `<img>`/enlace) |
+| Administrador (`renacer-admin`) | `/api/usuarios/**`; editar o anular ingresos y egresos; entregar solicitudes; escribir cuentas; `PUT /api/catalogo/:id`; cualquier `DELETE` |
+| Operación diaria (`renacer-miembros` o admin) | Todo lo demás |
+
+Sin token o con token inválido: `401`. Con token pero sin el grupo: `403`.
+
+El proveedor de Authentik debe tener **clave de firma RS256** (si no, firma con HS256 y el JWKS queda vacío: todo da 401).
+
+| Variable | Valor por defecto | Uso |
+|----------|-------------------|-----|
+| `AUTH_MODE` | `enforce` | `enforce` rechaza; `log` deja pasar y escribe en consola qué rechazaría (para desplegar sin cortar); `off` no revisa |
+| `AUTHENTIK_ISSUER` | `https://auth.slaksis.com/application/o/sga-renacer/` | Emisor esperado; el JWKS se lee de `<issuer>jwks/` |
+| `AUTHENTIK_CLIENT_ID` | `sga-renacer-frontend` | Audiencia esperada |
+| `AUTHENTIK_URL` | `https://auth.slaksis.com` | API de Authentik para administrar usuarios |
+| `AUTHENTIK_ADMIN_TOKEN` | — | Token de la cuenta de servicio `sga-backend` (rol `sga-admin-usuarios`). Nunca en el frontend |
+| `AUTHENTIK_MEMBER_GROUP` / `AUTHENTIK_ADMIN_GROUP` / `AUTHENTIK_GATE_ADMIN_GROUP` | `renacer-miembros` / `renacer-admin` / `renacer-puerta` | Grupos del SGA |
+| `AUTHENTIK_USER_PATH` | `renacer` | Ruta de los usuarios de Renacer en Authentik |
+
+### Usuarios (`/api/usuarios`, solo administradores)
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/usuarios` | Usuarios de Renacer |
+| `GET` | `/api/usuarios/existe?username=` | `{ "existe": bool }` |
+| `POST` | `/api/usuarios` | `{ name, email, username?, password?, isAdmin, isGateAdmin }`; queda en `renacer-miembros` |
+| `PATCH` | `/api/usuarios/:id` | `{ name?, email?, isActive? }` |
+| `POST` | `/api/usuarios/:id/password` | `{ password }` (mínimo 8) |
+| `POST` | `/api/usuarios/:id/admin` · `/puerta` | `{ valor: bool }` |
+| `DELETE` | `/api/usuarios/:id` | Elimina el usuario |
+| `GET` | `/api/usuarios/auditoria?limite=100` | Quién cambió qué |
+
+La cuenta de servicio tiene permisos globales sobre usuarios, así que **el backend limita el alcance**: solo toca usuarios del grupo de miembros, con ruta `renacer` y que no son superusuarios (`akadmin` y el resto responden 404). Cada cambio queda en la tabla `auditoria` con la persona real del token; nunca se guardan contraseñas. Un administrador no puede quitarse su propio permiso ni borrarse.
+
 - Validación de formato RUT chileno
 - Transacciones atómicas para operaciones críticas
 - Bloqueo pesimista (`SELECT ... FOR UPDATE`) en actualizaciones de inventario

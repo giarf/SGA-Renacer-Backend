@@ -12,6 +12,9 @@ object SgaApiApp extends cask.Main {
   override def host = sys.env.getOrElse("SGA_API_HOST", "0.0.0.0")
   override def port = sys.env.get("SGA_API_PORT").map(_.toInt).getOrElse(8080)
 
+  // Toda ruta exige sesión de Authentik salvo las públicas (ver auth.Autenticacion.requisito).
+  override def mainDecorators = Seq(new cl.familiarenacer.sga.auth.FiltroAutenticacion())
+
   // Inicialización de Repositorios
   val entidadRepo = new EntidadRepository(DB.ctx)
   entidadRepo.asegurarColumnasFotosPersonas()
@@ -33,6 +36,15 @@ object SgaApiApp extends cask.Main {
   asistenciaRepo.asegurarEsquema()
   val campanaRepo = new CampanaRepository()
   campanaRepo.asegurarEsquema()
+  val auditoriaRepo = new AuditoriaRepository(DB.ctx)
+  auditoriaRepo.asegurarEsquema()
+  val authentikAdmin = new cl.familiarenacer.sga.usuarios.AuthentikAdmin(
+    new cl.familiarenacer.sga.usuarios.AuthentikHttpReal(
+      sys.env.getOrElse("AUTHENTIK_URL", "https://auth.slaksis.com"),
+      sys.env.getOrElse("AUTHENTIK_ADMIN_TOKEN", "")
+    )
+  )
+  println(s"Autenticación: modo ${cl.familiarenacer.sga.auth.Autenticacion.modo}, emisor ${cl.familiarenacer.sga.auth.Autenticacion.issuer}")
   val apoderadoRepo = new ApoderadoRepository()
   val huellaRepo = new HuellaRepository()
   val huellaMatcher = new cl.familiarenacer.sga.huellero.HuellaMatcher()
@@ -56,6 +68,7 @@ object SgaApiApp extends cask.Main {
     new EgresosRoutes(egresoRepo),
     new CatalogoRoutes(inventarioRepo),
     new SolicitudesRoutes(solicitudRepo),
+    new UsuariosRoutes(authentikAdmin, auditoriaRepo),
     new CuentasRoutes(cuentaRepo),
     new AsistenciaRoutes(asistenciaRepo),
     new CampanasRoutes(campanaRepo),

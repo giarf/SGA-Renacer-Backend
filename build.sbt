@@ -12,7 +12,9 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "1.5.32",
       "org.scalameta" %% "munit" % "1.2.2" % Test,
       "com.lihaoyi" %% "cask" % "0.11.3",
-      "com.machinezoo.sourceafis" % "sourceafis" % "3.18.1"
+      "com.machinezoo.sourceafis" % "sourceafis" % "3.18.1",
+      // Verificación de los tokens de Authentik (JWT RS256 contra su JWKS).
+      "com.nimbusds" % "nimbus-jose-jwt" % "9.37.3"
     )
   )
 
