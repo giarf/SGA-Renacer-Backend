@@ -74,6 +74,22 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    *
    * @return El ID del ingreso generado.
    */
+  /**
+   * El inventario sube por la suma de las líneas y el ingreso registra el monto de la boleta:
+   * si no coinciden, la diferencia queda como descuadre en el balance de logs. Se tolera menos
+   * de $1 (cantidades fraccionadas por precios enteros).
+   */
+  private def validarMontoCompra(montoTotal: Option[BigDecimal], detalles: List[DetalleIngresoRecurso]): Unit =
+    if (detalles.nonEmpty) {
+      val sumaLineas = detalles.map(d => d.cantidad.getOrElse(BigDecimal(0)) * d.precioUnitarioIngreso.getOrElse(BigDecimal(0))).sum
+      val monto = montoTotal.getOrElse(sumaLineas)
+      if ((monto - sumaLineas).abs >= 1) {
+        throw new IllegalArgumentException(
+          s"El monto total de la compra ($$${monto.bigDecimal.toPlainString}) no coincide con la suma de los ítems ($$${sumaLineas.bigDecimal.toPlainString}). Corrige los precios o el neto/IVA."
+        )
+      }
+    }
+
   def registrarCompra(ingreso: IngresoRecurso, compra: IngresoCompra, detalles: List[DetalleIngresoRecurso]): Long =
     registrarCompraConItems(ingreso, compra, detalles.map(d => DetalleDonacionInput(d, "", None, None)))
 
@@ -82,6 +98,7 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
    * Al final recalcula, en la misma transacción, el precio de referencia (mediana 180 días) de cada ítem comprado.
    */
   def registrarCompraConItems(ingreso: IngresoRecurso, compra: IngresoCompra, items: List[DetalleDonacionInput]): Long = {
+    validarMontoCompra(ingreso.montoTotal, items.map(_.detalle))
     ctx.transaction {
       // 1. Insertar el ingreso base
       val ingresoId = ctx.run(

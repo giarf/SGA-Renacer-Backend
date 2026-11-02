@@ -19,7 +19,8 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     detalles: List[DetalleEgresoRecurso]
   ): Long = {
     ctx.transaction {
-      val detallesConPrecio = completarDetallesConPPP(detalles)
+      // Se descuenta primero: si una línea vacía el stock, su precio se ajusta al valor restante exacto.
+      val detallesConPrecio = completarDetallesConPPP(detalles).map(descontarInventarioPorDetalle)
       val montoTotal = calcularMontoTotal(egreso, pecuniario, detallesConPrecio)
 
       val egresoId = ctx.run(
@@ -50,7 +51,6 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
 
       if (detallesConPrecio.nonEmpty) {
         detallesConPrecio.foreach { detalle =>
-          descontarInventarioPorDetalle(detalle)
           ctx.run(
             query[DetalleEgresoRecurso].insert(
               _.egresoId -> lift(Option(egresoId)),
@@ -187,9 +187,8 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         detallesActuales.foreach(revertirInventarioPorDetalle)
         ctx.run(query[DetalleEgresoRecurso].filter(_.egresoId == lift(Option(id))).delete)
 
-        val detallesConPrecio = completarDetallesConPPP(detalles)
+        val detallesConPrecio = completarDetallesConPPP(detalles).map(descontarInventarioPorDetalle)
         detallesConPrecio.foreach { detalle =>
-          descontarInventarioPorDetalle(detalle)
           ctx.run(
             query[DetalleEgresoRecurso].insert(
               _.egresoId -> lift(Option(id)),
@@ -391,7 +390,12 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     } finally conn.close()
   }
 
-  private def descontarInventarioPorDetalle(detalle: DetalleEgresoRecurso): Unit = {
+  /**
+   * Descuenta el detalle del inventario y lo devuelve con el precio efectivamente aplicado.
+   * Si la línea vacía el stock, sale exactamente el valor restante (no cantidad × PPP redondeado),
+   * así no quedan sobrantes ni faltantes de fracciones de peso y no se rechaza el egreso.
+   */
+  private def descontarInventarioPorDetalle(detalle: DetalleEgresoRecurso): DetalleEgresoRecurso = {
     val itemId = detalle.itemCatalogoId.getOrElse(
       throw new IllegalArgumentException("Detalle sin itemCatalogoId al descontar inventario")
     )
@@ -414,10 +418,13 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     }
 
     val nuevoStock = stockActual - cantidad
-    val valorSalida = cantidad * precio
+    val vaciaStock = nuevoStock == 0 && cantidad > 0
+    val precioAplicado =
+      if (vaciaStock) (valorTotalActual / cantidad).max(BigDecimal(0)) else precio
+    val valorSalida = if (vaciaStock) valorTotalActual.max(BigDecimal(0)) else cantidad * precioAplicado
     val nuevoValorBruto = valorTotalActual - valorSalida
     val nuevoValorTotal =
-      if (nuevoValorBruto.abs <= BigDecimal("0.0001")) BigDecimal(0)
+      if (vaciaStock || nuevoValorBruto.abs <= BigDecimal("0.0001")) BigDecimal(0)
       else nuevoValorBruto
 
     if (nuevoValorTotal < 0) {
@@ -439,6 +446,7 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           _.precioPromedioPonderado -> lift(Option(nuevoPPP))
         )
     )
+    detalle.copy(precioUnitarioPpp = Some(precioAplicado))
   }
 
   private def revertirInventarioPorDetalle(detalle: DetalleEgresoRecurso): Unit = {
