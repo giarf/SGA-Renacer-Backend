@@ -111,12 +111,13 @@ class AutenticacionSpec extends AnyFunSuite {
     Json.obj("pk" -> pk, "username" -> username, "name" -> username, "email" -> s"$username@x.cl", "is_active" -> true,
       "groups" -> grupos, "path" -> path, "is_superuser" -> superuser, "type" -> "internal")
 
-  test("no toca a akadmin ni a usuarios fuera de Renacer; sí a los de Renacer") {
+  test("no toca a akadmin, a superusuarios ni a quien no es miembro; sí a miembros de cualquier carpeta") {
     val falso = new AuthentikFalso(Map(
       1 -> usuario(1, "akadmin", Seq("g-admins-authentik"), path = "users", superuser = true),
       2 -> usuario(2, "otro", Seq("g-otro"), path = "users"),
-      3 -> usuario(3, "intruso", Seq("g-miembros"), path = "users"),
-      4 -> usuario(4, "juan", Seq("g-miembros"))
+      3 -> usuario(3, "jefe", Seq("g-miembros"), path = "users", superuser = true),
+      4 -> usuario(4, "juan", Seq("g-miembros")),
+      5 -> usuario(5, "ana", Seq("g-miembros"), path = "users")
     ))
     val admin = new AuthentikAdmin(falso, "renacer-miembros", "renacer-admin", "renacer-puerta", "renacer")
 
@@ -129,7 +130,8 @@ class AutenticacionSpec extends AnyFunSuite {
     assert(falso.escrituras.isEmpty, falso.escrituras)
 
     admin.cambiarPassword(4, "contraseña-larga")
-    assert(falso.escrituras == Seq("POST /core/users/4/set_password/"))
+    admin.cambiarPassword(5, "contraseña-larga")
+    assert(falso.escrituras == Seq("POST /core/users/4/set_password/", "POST /core/users/5/set_password/"))
   }
 
   test("rechaza contraseñas cortas antes de llamar a Authentik") {

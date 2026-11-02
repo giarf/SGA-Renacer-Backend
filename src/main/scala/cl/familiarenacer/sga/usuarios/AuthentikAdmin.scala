@@ -55,7 +55,7 @@ class AuthentikHttpReal(baseUrl: String, token: String) extends AuthentikHttp {
  *
  * Esa cuenta puede tocar cualquier usuario de Authentik (sus permisos de usuario son globales),
  * así que la regla de alcance la impone este código: solo se modifican usuarios que están en
- * el grupo de miembros, con la ruta de Renacer y que no son superusuarios. Así ni el SGA ni un
+ * el grupo de miembros y que no son superusuarios ni cuentas de servicio. Así ni el SGA ni un
  * administrador del SGA pueden cambiarle la contraseña a `akadmin`.
  */
 class AuthentikAdmin(
@@ -121,11 +121,13 @@ class AuthentikAdmin(
     )
   }
 
-  /** Regla de alcance: miembro de Renacer, ruta de Renacer y no superusuario. */
+  /**
+   * Regla de alcance: está en el grupo de miembros de Renacer y no es superusuario ni cuenta de servicio.
+   * La carpeta (path) no cuenta: hay miembros fuera de "renacer". Los nuevos sí se crean en esa carpeta.
+   */
   def esDeRenacer(u: JsObject): Boolean = {
     val g = grupos()
     gruposDe(u).contains(g.miembros.toLowerCase) &&
-      (u \ "path").asOpt[String].contains(rutaUsuarios) &&
       !(u \ "is_superuser").asOpt[Boolean].getOrElse(false) &&
       (u \ "type").asOpt[String].forall(t => t == "internal" || t == "external")
   }

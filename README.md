@@ -1032,7 +1032,7 @@ El proveedor de Authentik debe tener **clave de firma RS256** (si no, firma con 
 | `DELETE` | `/api/usuarios/:id` | Elimina el usuario |
 | `GET` | `/api/usuarios/auditoria?limite=100` | Quién cambió qué |
 
-La cuenta de servicio tiene permisos globales sobre usuarios, así que **el backend limita el alcance**: solo toca usuarios del grupo de miembros, con ruta `renacer` y que no son superusuarios (`akadmin` y el resto responden 404). Cada cambio queda en la tabla `auditoria` con la persona real del token; nunca se guardan contraseñas. Un administrador no puede quitarse su propio permiso ni borrarse.
+La cuenta de servicio tiene permisos globales sobre usuarios, así que **el backend limita el alcance**: solo toca usuarios del grupo de miembros (en cualquier carpeta de Authentik) que no son superusuarios ni cuentas de servicio; `akadmin` y el resto responden 404. Los usuarios nuevos se crean en la carpeta `renacer`. Cada cambio queda en la tabla `auditoria` con la persona real del token; nunca se guardan contraseñas. Un administrador no puede quitarse su propio permiso ni borrarse.
 
 - Validación de formato RUT chileno
 - Transacciones atómicas para operaciones críticas
