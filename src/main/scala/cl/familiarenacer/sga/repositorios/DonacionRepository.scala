@@ -319,6 +319,22 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         throw new IllegalArgumentException("No se puede editar un ingreso anulado")
       }
 
+      def validarEntidad(campo: String, valor: Option[Int]): Unit = valor.foreach { entidadId =>
+        if (entidadId <= 0) throw new IllegalArgumentException(s"$campo inválido")
+        val existe = ctx.run(query[cl.familiarenacer.sga.modelos.Entidad].filter(_.id == lift(entidadId)).map(_.id)).nonEmpty
+        if (!existe) throw new IllegalArgumentException(s"$campo no existe (ID $entidadId)")
+      }
+      validarEntidad("Origen", ingreso.origenEntidadId)
+      validarEntidad("Responsable interno", ingreso.responsableInternoId)
+      donacion.foreach(d => validarEntidad("Gestor", d.gestorId))
+
+      // Texto vacío borra el campo; ausente lo conserva.
+      def textoEditado(nuevo: Option[String], actualValor: Option[String]): Option[String] =
+        nuevo match {
+          case Some(texto) => Option(texto.trim).filter(_.nonEmpty)
+          case None => actualValor
+        }
+
       val montoNuevo = if (detalles.nonEmpty) {
         detalles.map(d => d.cantidad.getOrElse(BigDecimal(0)) * d.precioUnitarioIngreso.getOrElse(BigDecimal(0))).sum
       } else ingreso.montoTotal.orElse(actual.montoTotal).getOrElse(BigDecimal(0))
@@ -331,31 +347,32 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
             _.responsableInternoId -> lift(ingreso.responsableInternoId.orElse(actual.responsableInternoId)),
             _.solicitudId -> lift(ingreso.solicitudId.orElse(actual.solicitudId)),
             _.fecha -> lift(ingreso.fecha.orElse(actual.fecha)),
-            _.tipoTransaccion -> lift(ingreso.tipoTransaccion.orElse(actual.tipoTransaccion)),
+            // El tipo define qué tablas hijas existen: no se cambia al editar.
+            _.tipoTransaccion -> lift(actual.tipoTransaccion),
             _.montoTotal -> lift(Option(montoNuevo)),
             _.estado -> lift(ingreso.estado.orElse(actual.estado)),
-            _.anotaciones -> lift(ingreso.anotaciones.orElse(actual.anotaciones)),
+            _.anotaciones -> lift(textoEditado(ingreso.anotaciones, actual.anotaciones)),
             _.creadoPorId -> lift(ingreso.creadoPorId.orElse(actual.creadoPorId))
           )
       )
 
       donacion.foreach { d =>
         ctx.run(query[IngresoDonacion].filter(_.ingresoId == lift(Option(id))).update(
-          _.propositoEspecifico -> lift(d.propositoEspecifico),
+          _.propositoEspecifico -> lift(d.propositoEspecifico.map(_.trim).filter(_.nonEmpty)),
           _.gestorId -> lift(d.gestorId)
         ))
       }
       compra.foreach { c =>
         ctx.run(query[IngresoCompra].filter(_.ingresoId == lift(Option(id))).update(
           _.cuentaOrigenId -> lift(c.cuentaOrigenId),
-          _.numeroFacturaBoleta -> lift(c.numeroFacturaBoleta),
+          _.numeroFacturaBoleta -> lift(c.numeroFacturaBoleta.map(_.trim).filter(_.nonEmpty)),
           _.montoNeto -> lift(c.montoNeto),
           _.montoIva -> lift(c.montoIva)
         ))
       }
       subvencion.foreach { s =>
         ctx.run(query[IngresoSubvencion].filter(_.ingresoId == lift(Option(id))).update(
-          _.nombreProyecto -> lift(s.nombreProyecto),
+          _.nombreProyecto -> lift(s.nombreProyecto.map(_.trim).filter(_.nonEmpty)),
           _.fechaRendicionLimite -> lift(s.fechaRendicionLimite)
         ))
       }

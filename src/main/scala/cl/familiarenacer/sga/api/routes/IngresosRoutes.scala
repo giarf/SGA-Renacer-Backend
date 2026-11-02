@@ -173,7 +173,7 @@ class IngresosRoutes(
     try {
       val body = Json.parse(request.text()).as[DonacionRequest]
       val ingresoNormalizado = normalizarIngreso(body.ingreso)
-      val id = donacionRepo.registrarDonacionDinero(ingresoNormalizado, body.donacion, body.pecuniario)
+      val id = donacionRepo.registrarDonacionDinero(ingresoNormalizado, normalizarDonacion(body.donacion), body.pecuniario)
       respond(Json.obj("id_ingreso" -> id, "status" -> "registrado"), 201)
     } catch {
       case e: Exception =>
@@ -205,7 +205,7 @@ class IngresosRoutes(
           codigoBarras = item.codigoBarras
         )
       }
-      val id = inventarioRepo.registrarDonacionCompleta(ingresoNormalizado, body.donacion, detallesInput)
+      val id = inventarioRepo.registrarDonacionCompleta(ingresoNormalizado, normalizarDonacion(body.donacion), detallesInput)
       respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Donación de bienes registrada exitosamente"), 201)
     } catch {
       case e: CodigoBarrasDuplicadoException =>
@@ -463,6 +463,10 @@ class IngresosRoutes(
   }
 
   initialize()
+
+  /** Un propósito en blanco se guarda vacío: nunca se inventa una campaña. */
+  private def normalizarDonacion(donacion: IngresoDonacion): IngresoDonacion =
+    donacion.copy(propositoEspecifico = donacion.propositoEspecifico.map(_.trim).filter(_.nonEmpty))
 
   private def normalizarIngreso(ingreso: IngresoRecurso): IngresoRecurso = {
     if (ingreso.fecha.isDefined) ingreso else ingreso.copy(fecha = Some(LocalDate.now()))

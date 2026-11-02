@@ -128,6 +128,11 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         query[EgresoPecuniario].filter(_.egresoId == lift(id))
       ).headOption
 
+      Seq("Responsable interno" -> egreso.responsableInternoId, "Destino" -> egreso.destinoEntidadId).foreach {
+        case (campo, Some(entidadId)) if entidadId <= 0 => throw new IllegalArgumentException(s"$campo inválido")
+        case _ =>
+      }
+
       val montoAnterior = actual.montoTotal.getOrElse(BigDecimal(0))
       val montoNuevo = egreso.montoTotal.orElse(actual.montoTotal).getOrElse(BigDecimal(0))
 
@@ -142,7 +147,8 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
           .filter(_.id == lift(id))
           .update(
             _.fecha -> lift(egreso.fecha.orElse(actual.fecha)),
-            _.tipoEgreso -> lift(egreso.tipoEgreso.orElse(actual.tipoEgreso)),
+            // El tipo de egreso no se cambia al editar.
+            _.tipoEgreso -> lift(actual.tipoEgreso),
             _.montoTotal -> lift(Option(montoNuevo)),
             _.responsableInternoId -> lift(egreso.responsableInternoId.orElse(actual.responsableInternoId)),
             _.anotaciones -> lift(egreso.anotaciones.orElse(actual.anotaciones)),
