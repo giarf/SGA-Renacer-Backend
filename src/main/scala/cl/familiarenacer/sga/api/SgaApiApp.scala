@@ -27,7 +27,7 @@ object SgaApiApp extends cask.Main {
   val ubicacionRepo = new UbicacionRepository()
   ubicacionRepo.asegurarEsquemaUbicaciones()
   val egresoRepo = new EgresoRepository(DB.ctx)
-  val solicitudRepo = new SolicitudRepository(DB.ctx)
+  val solicitudRepo = new SolicitudRepository(DB.ctx, egresoRepo)
   val cuentaRepo = new CuentaFinancieraRepository(DB.ctx)
   val asistenciaRepo = new AsistenciaRepository()
   asistenciaRepo.asegurarEsquema()

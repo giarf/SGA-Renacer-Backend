@@ -88,6 +88,17 @@ class IngresosRoutes(
   )
   implicit val registrarSubvencionFormat: OFormat[RegistrarSubvencionRequest] = Json.format[RegistrarSubvencionRequest]
 
+  case class ItemAjusteRequest(itemCatalogoId: Int, cantidad: BigDecimal)
+  implicit val itemAjusteFormat: OFormat[ItemAjusteRequest] = Json.format[ItemAjusteRequest]
+
+  case class RegistrarAjusteIngresoRequest(
+    ingreso: IngresoRecurso,
+    items: List[ItemAjusteRequest] = Nil,
+    pecuniario: Option[IngresoPecuniario] = None
+  )
+  implicit val registrarAjusteIngresoFormat: OFormat[RegistrarAjusteIngresoRequest] =
+    Json.using[Json.WithDefaultValues].format[RegistrarAjusteIngresoRequest]
+
   case class ActualizarIngresoRequest(
     ingreso: IngresoRecurso,
     donacion: Option[IngresoDonacion] = None,
@@ -167,6 +178,29 @@ class IngresosRoutes(
 
   @cask.options("/api/ingresos/donacion")
   def donacionOptions() = corsOptions()
+
+  @cask.options("/api/ingresos/ajuste")
+  def ajusteIngresoOptions() = corsOptions()
+
+  /** Ajuste de entrada (sobran bienes o dinero). El de salida se registra como egreso tipo "Ajuste". */
+  @cask.post("/api/ingresos/ajuste")
+  def registrarAjusteIngreso(request: cask.Request) = {
+    try {
+      val body = Json.parse(request.text()).as[RegistrarAjusteIngresoRequest]
+      val id = donacionRepo.registrarAjusteIngreso(
+        normalizarIngreso(body.ingreso),
+        body.items.map(i => i.itemCatalogoId -> i.cantidad),
+        body.pecuniario
+      )
+      respond(Json.obj("id_ingreso" -> id, "mensaje" -> "Ajuste de entrada registrado"), 201)
+    } catch {
+      case e: IllegalArgumentException => respond(Json.obj("error" -> e.getMessage), 400)
+      case e: JsResultException => respond(Json.obj("error" -> s"Datos inválidos: ${e.getMessage}"), 400)
+      case e: Exception =>
+        e.printStackTrace()
+        respond(Json.obj("error" -> e.getMessage), 500)
+    }
+  }
 
   @cask.post("/api/ingresos/donacion")
   def registrarDonacion(request: cask.Request) = {

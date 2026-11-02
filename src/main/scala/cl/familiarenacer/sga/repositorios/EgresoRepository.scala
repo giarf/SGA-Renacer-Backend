@@ -230,6 +230,17 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         }
         detallesAsociados.foreach(revertirInventarioPorDetalle)
 
+        // Si era la entrega de una solicitud, la solicitud vuelve a quedar pendiente.
+        ctx.run(quote {
+          infix"""UPDATE item_solicitud SET cantidad_entregada = NULL
+            WHERE solicitud_id = (SELECT solicitud_id FROM egreso_recurso WHERE id = ${lift(id)})""".as[Update[EgresoRecurso]]
+        })
+        ctx.run(quote {
+          infix"""UPDATE solicitud_material SET estado = 'Pendiente'
+            WHERE id = (SELECT solicitud_id FROM egreso_recurso WHERE id = ${lift(id)})
+              AND estado = 'Entregada'""".as[Update[EgresoRecurso]]
+        })
+
         ctx.run(
           query[EgresoRecurso]
             .filter(_.id == lift(id))
@@ -515,10 +526,20 @@ class EgresoRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
     val conn = abrirConexion()
     try {
       val statement = conn.createStatement()
-      try statement.execute("ALTER TABLE egreso_recurso ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'Cerrado'")
-      finally statement.close()
+      try {
+        statement.execute("ALTER TABLE egreso_recurso ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'Cerrado'")
+        // Consumo interno generado al entregar una solicitud.
+        statement.execute("ALTER TABLE egreso_recurso ADD COLUMN IF NOT EXISTS solicitud_id INTEGER REFERENCES solicitud_material(id)")
+        statement.execute("CREATE INDEX IF NOT EXISTS egreso_recurso_solicitud_idx ON egreso_recurso (solicitud_id)")
+      } finally statement.close()
     } finally conn.close()
   }
+
+  /** Liga un egreso a la solicitud que lo originó (columna fuera del case class para no tocar su JSON). */
+  def vincularSolicitud(egresoId: Int, solicitudId: Int): Unit =
+    ctx.run(quote {
+      infix"""UPDATE egreso_recurso SET solicitud_id = ${lift(solicitudId)} WHERE id = ${lift(egresoId)}""".as[Update[EgresoRecurso]]
+    })
 
   private def abrirConexion(): java.sql.Connection = {
     val host = sys.env.getOrElse("DATABASE_HOST", "localhost")

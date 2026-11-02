@@ -184,6 +184,65 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
   }
 
   /**
+   * Ajuste de entrada: hay más bienes o dinero que lo registrado (el de salida es un egreso tipo "Ajuste").
+   * Los bienes entran valorizados a su PPP vigente, así el ajuste corrige el stock sin mover el costo promedio;
+   * el dinero suma al saldo de la cuenta. Anular el ingreso revierte ambos efectos como cualquier otro ingreso.
+   */
+  def registrarAjusteIngreso(ingreso: IngresoRecurso, items: List[(Int, BigDecimal)], pecuniario: Option[IngresoPecuniario]): Long = {
+    if (ingreso.anotaciones.forall(_.trim.isEmpty)) throw new IllegalArgumentException("Indica el motivo del ajuste")
+    if (ingreso.responsableInternoId.forall(_ <= 0)) throw new IllegalArgumentException("Selecciona el responsable interno")
+    if (items.isEmpty == pecuniario.isEmpty) throw new IllegalArgumentException("El ajuste debe ser de bienes (ítems) o pecuniario (cuenta), no ambos")
+    items.foreach { case (itemId, cantidad) =>
+      if (itemId <= 0 || cantidad <= 0) throw new IllegalArgumentException("Cada ítem del ajuste necesita un ítem del catálogo y una cantidad mayor a cero")
+    }
+    pecuniario.foreach { p =>
+      if (p.cuentaDestinoId.forall(_ <= 0)) throw new IllegalArgumentException("Selecciona la cuenta del ajuste")
+    }
+
+    ctx.transaction {
+      val detalles = items.groupMapReduce(_._1)(_._2)(_ + _).toList.sortBy(_._1).map { case (itemId, cantidad) =>
+        val item = ctx.run(query[ItemCatalogo].filter(_.id == lift(itemId))).headOption
+          .getOrElse(throw new IllegalArgumentException(s"Item con ID $itemId no existe"))
+        val valorUnitario = item.precioPromedioPonderado.filter(_ > 0).orElse(item.precioReferencia).getOrElse(BigDecimal(0))
+        DetalleIngresoRecurso(itemCatalogoId = Some(itemId), cantidad = Some(cantidad), precioUnitarioIngreso = Some(valorUnitario))
+      }
+      val monto = pecuniario match {
+        case Some(_) => ingreso.montoTotal.filter(_ > 0).getOrElse(throw new IllegalArgumentException("El monto del ajuste debe ser mayor a cero"))
+        case None => detalles.map(d => d.cantidad.getOrElse(BigDecimal(0)) * d.precioUnitarioIngreso.getOrElse(BigDecimal(0))).sum
+      }
+
+      val cabecera = ingreso.copy(
+        id = 0,
+        origenEntidadId = ingreso.origenEntidadId.filter(_ > 0),
+        tipoTransaccion = Some("Ajuste"),
+        estado = Some("Cerrado"),
+        montoTotal = Some(monto),
+        fecha = ingreso.fecha.orElse(Some(java.time.LocalDate.now())),
+        anotaciones = ingreso.anotaciones.map(_.trim)
+      )
+      val ingresoId = ctx.run(query[IngresoRecurso].insertValue(lift(cabecera)).returningGenerated(_.id))
+
+      detalles.foreach { d =>
+        val detalle = d.copy(ingresoId = Some(ingresoId))
+        aplicarDiferenciaIngreso(detalle, revertir = false)
+        ctx.run(
+          query[DetalleIngresoRecurso].insert(
+            _.ingresoId -> lift(detalle.ingresoId),
+            _.itemCatalogoId -> lift(detalle.itemCatalogoId),
+            _.cantidad -> lift(detalle.cantidad),
+            _.precioUnitarioIngreso -> lift(detalle.precioUnitarioIngreso)
+          )
+        )
+      }
+      pecuniario.foreach { p =>
+        ctx.run(query[IngresoPecuniario].insertValue(lift(p.copy(ingresoId = Some(ingresoId)))))
+        p.cuentaDestinoId.foreach(cuentaId => ajustarSaldoCuenta(cuentaId, monto))
+      }
+      ingresoId.toLong
+    }
+  }
+
+  /**
    * Registra una Subvención de manera atómica.
    *
    * @return El ID del ingreso generado.
@@ -256,8 +315,10 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
 
     ingresos.map { ingreso =>
       val id = ingreso.id
+      val esAjuste = ingreso.tipoTransaccion.exists(_.equalsIgnoreCase("Ajuste"))
       val tipo =
-        if (compras.contains(id)) "Compra"
+        if (esAjuste) { if (detallesMap.getOrElse(id, 0) > 0) "AjusteBienes" else "AjustePecuniario" }
+        else if (compras.contains(id)) "Compra"
         else if (subvenciones.contains(id)) "Subvencion"
         else if (donaciones.contains(id) && detallesMap.getOrElse(id, 0) > 0) "DonacionBienes"
         else if (donaciones.contains(id)) "DonacionPecuniaria"
@@ -265,7 +326,8 @@ class DonacionRepository(val ctx: PostgresJdbcContext[SnakeCase.type]) {
         else ingreso.tipoTransaccion.getOrElse("Ingreso")
 
       val descripcion =
-        if (compras.contains(id)) descripcionCompra.get(id)
+        if (esAjuste) ingreso.anotaciones
+        else if (compras.contains(id)) descripcionCompra.get(id)
         else if (subvenciones.contains(id)) descripcionSubvencion.get(id)
         else if (donaciones.contains(id)) descripcionDonacion.get(id)
         else None
