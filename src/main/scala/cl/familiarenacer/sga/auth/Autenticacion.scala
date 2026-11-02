@@ -102,6 +102,8 @@ object Autenticacion {
     Set("POST") -> "^/api/solicitudes/\\d+/entregar$".r,
     Set("POST", "PUT", "PATCH", "DELETE") -> "^/api/cuentas(/.*)?$".r,
     Set("PUT") -> "^/api/catalogo/\\d+$".r,
+    // Ficha completa de una persona. Los miembros solo usan POST /api/personas/rapida.
+    Set("POST") -> "^/api/personas$".r,
     // Borrar cualquier cosa es de administración.
     Set("DELETE") -> "^/api/.*$".r
   )

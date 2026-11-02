@@ -79,6 +79,8 @@ class AutenticacionSpec extends AnyFunSuite {
     assert(Autenticacion.requisito("DELETE", "/api/personas/3") == Admin)
     assert(Autenticacion.requisito("GET", "/api/cuentas") == Operador)
     assert(Autenticacion.requisito("POST", "/api/cuentas") == Admin)
+    assert(Autenticacion.requisito("POST", "/api/personas") == Admin)
+    assert(Autenticacion.requisito("POST", "/api/personas/rapida") == Operador)
   }
 
   test("un miembro no pasa rutas de admin y alguien sin grupos del SGA no pasa ninguna") {

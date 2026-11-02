@@ -1,6 +1,7 @@
 package cl.familiarenacer.sga.api.routes
 
 import cl.familiarenacer.sga.api.ApiSupport
+import cl.familiarenacer.sga.auth.Autenticacion
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.{EntidadRepository, EtiquetaRepository}
 import io.undertow.server.handlers.form.{FormData, FormDataParser, FormParserFactory}
@@ -76,6 +77,10 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
     fechaNacimiento: Option[LocalDate] = None
   )
   implicit val registrarPersonaFormat: OFormat[RegistrarPersonaRequest] = Json.format[RegistrarPersonaRequest]
+
+  /** Alta mínima desde un buscador cuando la persona no está registrada (miembros y admins). */
+  case class RegistroRapidoRequest(nombres: String, apellidos: String, telefono: String)
+  implicit val registroRapidoFormat: OFormat[RegistroRapidoRequest] = Json.format[RegistroRapidoRequest]
 
   // ===== ENDPOINTS =====
 
@@ -191,6 +196,47 @@ class PersonasRoutes(entidadRepo: EntidadRepository, etiquetaRepo: EtiquetaRepos
             respond(Json.obj("error" -> e.getMessage), 500)
         } finally {
           parserOpt.foreach(_.close())
+        }
+    }
+  }
+
+  @cask.options("/api/personas/rapida")
+  def personaRapidaOptions() = corsOptions()
+
+  /**
+   * Registro rápido: solo nombres, apellidos y teléfono. Lo usan los formularios cuando la
+   * persona buscada no existe; el resto de la ficha lo completa un administrador.
+   */
+  @cask.post("/api/personas/rapida")
+  def registrarPersonaRapida(request: cask.Request): cask.Response[String] = {
+    scala.util.Try(Json.parse(request.text())).toOption.flatMap(_.validate[RegistroRapidoRequest].asOpt) match {
+      case None => respond(Json.obj("error" -> "Debes indicar nombres, apellidos y teléfono"), 400)
+      case Some(body) =>
+        val limpio = (t: String) => t.trim.replaceAll("\\s+", " ")
+        val nombres = limpio(body.nombres)
+        val apellidos = limpio(body.apellidos)
+        val telefono = body.telefono.trim.replaceAll("[^0-9+]", "")
+        if (nombres.isEmpty || apellidos.isEmpty) respond(Json.obj("error" -> "Nombres y apellidos son obligatorios"), 400)
+        else if (telefono.count(_.isDigit) < 8) respond(Json.obj("error" -> "Ingresa un teléfono válido"), 400)
+        else try {
+          val autor = Autenticacion.actual.map(_.etiqueta).getOrElse("sistema")
+          val entidad = Entidad(
+            id = 0, rut = None, tipoEntidad = Some("PersonaNatural"),
+            telefono = Some(telefono), correo = None, direccion = None, comuna = None,
+            anotaciones = Some(s"Registro rápido por $autor: completar ficha"),
+            createdAt = Some(java.time.LocalDateTime.now())
+          )
+          val persona = PersonaNatural(entidadId = 0, nombres = nombres, apellidos = Some(apellidos), genero = None)
+          val id = entidadRepo.registrarPersonaNatural(persona, entidad)
+          respond(Json.obj(
+            "id" -> id, "tipoEntidad" -> "PersonaNatural", "identificador" -> "",
+            "nombres" -> nombres, "apellidos" -> apellidos,
+            "nombreCompleto" -> s"$nombres $apellidos", "telefono" -> telefono
+          ), 201)
+        } catch {
+          case e: Exception =>
+            e.printStackTrace()
+            respond(Json.obj("error" -> e.getMessage), 500)
         }
     }
   }
