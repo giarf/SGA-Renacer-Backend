@@ -16,7 +16,12 @@ class FiltroAutenticacion extends cask.RawDecorator with ApiSupport {
     val ruta = ctx.exchange.getRequestPath
     val requisito = Autenticacion.requisito(metodo, ruta)
 
-    if (Autenticacion.modo == "off" || requisito == Requisito.Publico) {
+    if (metodo.equalsIgnoreCase("OPTIONS")) {
+      // Preflight CORS: se responde aquí, sin pasar por el endpoint. Los handlers @cask.options no
+      // declaran parámetros, así que cask rechazaba con 400 "Unknown argument" cualquier preflight
+      // con query string (p. ej. OPTIONS /api/entidades?q=juan), y el navegador bloqueaba el GET.
+      Result.Success(corsOptions())
+    } else if (Autenticacion.modo == "off" || requisito == Requisito.Publico) {
       delegate(ctx, Map())
     } else {
       val header = Option(ctx.exchange.getRequestHeaders.getFirst("Authorization"))
