@@ -98,7 +98,43 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
       val padrino = Option(rs.getObject("padrino_id")).map(_ => contacto("a", rs.getInt("padrino_id")).copy(gestor = Option(rs.getString("a_gestor")).filter(_.nonEmpty)))
       ParticipanteCampana(rowId, contacto("b", rs.getInt("beneficiario_id")), padrino, rs.getInt("version"), valores.getOrElse(rowId, Map.empty))
     }
-    DetalleCampana(campana, columnas, participantes)
+    val usaFicha = columnas.exists(_.tipo == "ficha")
+    val fichas = if (usaFicha) cargarFichas(c, participantes.flatMap(p => p.beneficiario.id :: p.padrino.map(_.id).toList).distinct) else Map.empty[Int, JsObject]
+    val conFicha = if (!usaFicha) participantes else participantes.map(p => p.copy(
+      beneficiario = p.beneficiario.copy(ficha = fichas.get(p.beneficiario.id)),
+      padrino = p.padrino.map(a => a.copy(ficha = fichas.get(a.id)))))
+    DetalleCampana(campana, columnas, conFicha)
+  }
+
+  private def cargarFichas(c: Connection, ids: List[Int]): Map[Int, JsObject] = if (ids.isEmpty) Map.empty else {
+    val arreglo = c.createArrayOf("integer", ids.map(Int.box).toArray)
+    query(c, """SELECT p.entidad_id, e.rut, p.fecha_nacimiento,
+        date_part('year', age(current_date, p.fecha_nacimiento))::int AS edad,
+        p.genero, p.ocupacion, e.telefono, e.correo, e.direccion, e.comuna, e.sector, e.region, e.red_social, e.anotaciones,
+        nullif(trim(g.nombres || ' ' || coalesce(g.apellidos, '')), '') AS gestor,
+        (SELECT string_agg(ltrim(t.nombre, '#'), ', ' ORDER BY t.nombre) FROM entidad_etiqueta ee JOIN etiqueta t ON t.id = ee.etiqueta_id WHERE ee.entidad_id = p.entidad_id) AS etiquetas,
+        ap.nombre AS apoderado_nombre, ap.telefono AS apoderado_telefono, ap.parentesco AS apoderado_parentesco
+      FROM persona_natural p JOIN entidad e ON e.id = p.entidad_id
+      LEFT JOIN persona_natural g ON g.entidad_id = e.gestor_id
+      LEFT JOIN LATERAL (
+        SELECT trim(a.nombres || ' ' || coalesce(a.apellidos, '')) AS nombre, ea.telefono, pa.parentesco
+        FROM persona_apoderado pa JOIN persona_natural a ON a.entidad_id = pa.apoderado_id JOIN entidad ea ON ea.id = a.entidad_id
+        WHERE pa.persona_id = p.entidad_id ORDER BY pa.es_contacto_principal DESC, pa.created_at LIMIT 1) ap ON true
+      WHERE p.entidad_id = ANY(?)""", arreglo) { rs =>
+      def texto(col: String): Option[String] = Option(rs.getString(col)).map(_.trim).filter(_.nonEmpty)
+      // Los RUT provisorios del sistema (PERSONA-123) no son datos reales de la persona.
+      val rut = texto("rut").filterNot(_.startsWith("PERSONA-"))
+      val apoderado = texto("apoderado_nombre").map(n => Json.obj("nombre" -> n, "telefono" -> texto("apoderado_telefono"), "parentesco" -> texto("apoderado_parentesco")))
+      val campos: Seq[(String, JsValue)] = Seq(
+        "rut" -> rut.map(JsString), "edad" -> Option(rs.getObject("edad")).map(_ => JsNumber(rs.getInt("edad"))),
+        "fechaNacimiento" -> Option(rs.getDate("fecha_nacimiento")).map(d => JsString(d.toLocalDate.toString)),
+        "genero" -> texto("genero").map(JsString), "ocupacion" -> texto("ocupacion").map(JsString), "telefono" -> texto("telefono").map(JsString),
+        "correo" -> texto("correo").map(JsString), "direccion" -> texto("direccion").map(JsString), "comuna" -> texto("comuna").map(JsString),
+        "sector" -> texto("sector").map(JsString), "region" -> texto("region").map(JsString), "redSocial" -> texto("red_social").map(JsString),
+        "anotaciones" -> texto("anotaciones").map(JsString), "gestor" -> texto("gestor").map(JsString), "etiquetas" -> texto("etiquetas").map(JsString),
+        "apoderado" -> apoderado).collect { case (k, Some(v)) => k -> v }
+      rs.getInt("entidad_id") -> JsObject(campos)
+    }.toMap
   }
 
   def agregarParticipante(id: Int, body: RegistrarParticipante): Int = transaction { c =>
@@ -127,12 +163,17 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     editable(c, id)
     if (execute(c, "DELETE FROM campana_participante WHERE campana_id = ? AND id = ?", id, participanteId) == 0) throw CampanaError(404, "El participante ya no existe.")
   }
-  def agregarColumna(id: Int, body: CrearColumnaAsistencia): Int = {
-    val nombre = AsistenciaValidacion.nombre(body.nombre); val tipo = if (body.tipo == "whatsapp") body.tipo else AsistenciaValidacion.tipo(body.tipo)
+  def agregarColumna(id: Int, body: CrearColumnaCampana): Int = {
+    val nombre = AsistenciaValidacion.nombre(body.nombre)
+    val tipo = if (Set("whatsapp", "ficha").contains(body.tipo)) body.tipo else AsistenciaValidacion.tipo(body.tipo)
+    // Las columnas de ficha guardan en `clave` qué dato muestran (p. ej. "beneficiario.edad"); la clave es única por campaña.
+    val clave = if (tipo == "ficha") Some(CampanaFicha.validar(body.campo.getOrElse(""))) else None
     transaction { c =>
       editable(c, id)
-      query(c, """INSERT INTO campana_columna(campana_id, nombre, tipo, orden)
-        VALUES (?, ?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM campana_columna WHERE campana_id = ?)) RETURNING id""", id, nombre, tipo, id)(_.getInt(1)).head
+      try query(c, """INSERT INTO campana_columna(campana_id, nombre, tipo, clave, orden)
+        VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM campana_columna WHERE campana_id = ?)) RETURNING id""", id, nombre, tipo, clave.orNull, id)(_.getInt(1)).head
+      catch { case e: java.sql.SQLException if e.getSQLState == "23505" && clave.nonEmpty =>
+        throw CampanaError(409, "Ese dato de la ficha ya está como columna en esta campaña.") }
     }
   }
   def ordenarColumnas(id: Int, body: OrdenarColumnasCampana): Unit = transaction { c =>
@@ -170,6 +211,7 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     version(body.version); editable(c, id)
     val columna = query(c, "SELECT tipo, clave, mensaje, destinatario, version FROM campana_columna WHERE campana_id = ? AND id = ? FOR SHARE", id, columnaId)(rs => (rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)))
       .headOption.getOrElse(throw CampanaError(404, "La columna ya no existe."))
+    if (columna._1 == "ficha") throw CampanaError(400, "Esta columna muestra un dato de la ficha; edítalo en la ficha de la persona.")
     if (columna._1 == "whatsapp") CampanaMensaje.validar(body.valor) else AsistenciaValidacion.valor(columna._1, body.valor)
     if (columna._1 == "whatsapp") {
       if (!body.columnaVersion.contains(columna._5)) conflict()

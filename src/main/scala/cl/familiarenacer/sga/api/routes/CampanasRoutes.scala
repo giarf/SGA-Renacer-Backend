@@ -3,7 +3,7 @@ package cl.familiarenacer.sga.api.routes
 import cl.familiarenacer.sga.api.ApiSupport
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.modelos.CampanasJson._
-import cl.familiarenacer.sga.modelos.AsistenciaJson.{crearColumnaFormat, guardarFormat}
+import cl.familiarenacer.sga.modelos.AsistenciaJson.guardarFormat
 import cl.familiarenacer.sga.repositorios.CampanaRepository
 import play.api.libs.json._
 import scala.util.control.NonFatal
@@ -57,7 +57,7 @@ class CampanasRoutes(repo: CampanaRepository)(implicit cc: castor.Context, log: 
   @cask.delete("/api/campanas/:id/participantes/:participanteId")
   def quitar(id: Int, participanteId: Int) = safely { repo.quitarParticipante(id, participanteId); respond(Json.obj("mensaje" -> "Participante retirado")) }
   @cask.post("/api/campanas/:id/columnas")
-  def columna(id: Int, request: cask.Request) = safely { respond(Json.obj("id" -> repo.agregarColumna(id, Json.parse(request.text()).as[CrearColumnaAsistencia])), 201) }
+  def columna(id: Int, request: cask.Request) = safely { respond(Json.obj("id" -> repo.agregarColumna(id, Json.parse(request.text()).as[CrearColumnaCampana])), 201) }
   @cask.options("/api/campanas/:id/orden-columnas")
   def ordenOptions(id: Int) = corsOptions()
   @cask.put("/api/campanas/:id/orden-columnas")

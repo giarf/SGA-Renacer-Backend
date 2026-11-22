@@ -8,7 +8,19 @@ case class CrearCampana(nombre: String, fecha: LocalDate, descripcion: String = 
 case class CambiarEstadoCampana(estado: String, version: Int)
 case class RegistrarParticipante(beneficiarioId: Int)
 case class AsignarPadrino(padrinoId: Option[Int], version: Int)
-case class ContactoCampana(id: Int, nombreCompleto: String, telefono: Option[String], gestor: Option[String] = None)
+case class ContactoCampana(id: Int, nombreCompleto: String, telefono: Option[String], gestor: Option[String] = None, ficha: Option[JsObject] = None)
+case class CrearColumnaCampana(nombre: String, tipo: String, campo: Option[String] = None)
+
+/** Datos de la ficha de una persona que pueden mostrarse como columna de solo lectura en una campaña. */
+object CampanaFicha {
+  val personas: Set[String] = Set("beneficiario", "padrino")
+  val campos: Set[String] = Set("rut", "edad", "fechaNacimiento", "genero", "ocupacion", "telefono", "correo", "direccion",
+    "comuna", "sector", "region", "redSocial", "anotaciones", "gestor", "etiquetas", "apoderado")
+  def validar(campo: String): String = campo.split('.') match {
+    case Array(persona, dato) if personas.contains(persona) && campos.contains(dato) => campo
+    case _ => throw CampanaError(400, "Selecciona un dato de la ficha válido.")
+  }
+}
 case class ColumnaCampana(id: Int, nombre: String, tipo: String, clave: Option[String], mensaje: String, destinatario: String, version: Int)
 case class OrdenarColumnasCampana(columnas: List[Int])
 case class ConfigurarMensajeCampana(mensaje: String, destinatario: String, version: Int)
@@ -32,6 +44,7 @@ object CampanaMensaje {
 object CampanasJson {
   implicit val configurarFormat: OFormat[ConfigurarMensajeCampana] = Json.format[ConfigurarMensajeCampana]
   implicit val ordenarColumnasFormat: OFormat[OrdenarColumnasCampana] = Json.format[OrdenarColumnasCampana]
+  implicit val crearColumnaCampanaFormat: OFormat[CrearColumnaCampana] = Json.using[Json.WithDefaultValues].format[CrearColumnaCampana]
   implicit val celdaFormat: OFormat[GuardarCeldaCampana] = Json.format[GuardarCeldaCampana]
   implicit val campanaFormat: OFormat[Campana] = Json.format[Campana]
   implicit val crearFormat: OFormat[CrearCampana] = Json.using[Json.WithDefaultValues].format[CrearCampana]
