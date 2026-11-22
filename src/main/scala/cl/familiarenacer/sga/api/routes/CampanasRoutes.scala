@@ -58,6 +58,16 @@ class CampanasRoutes(repo: CampanaRepository)(implicit cc: castor.Context, log: 
   def quitar(id: Int, participanteId: Int) = safely { repo.quitarParticipante(id, participanteId); respond(Json.obj("mensaje" -> "Participante retirado")) }
   @cask.post("/api/campanas/:id/columnas")
   def columna(id: Int, request: cask.Request) = safely { respond(Json.obj("id" -> repo.agregarColumna(id, Json.parse(request.text()).as[CrearColumnaAsistencia])), 201) }
+  @cask.options("/api/campanas/:id/orden-columnas")
+  def ordenOptions(id: Int) = corsOptions()
+  @cask.put("/api/campanas/:id/orden-columnas")
+  def ordenar(id: Int, request: cask.Request) = safely {
+    repo.ordenarColumnas(id, Json.parse(request.text()).as[OrdenarColumnasCampana]); respond(Json.obj("mensaje" -> "Orden actualizado"))
+  }
+  @cask.options("/api/campanas/:id/columnas/:columnaId")
+  def columnaOptions(id: Int, columnaId: Int) = corsOptions()
+  @cask.delete("/api/campanas/:id/columnas/:columnaId")
+  def quitarColumna(id: Int, columnaId: Int) = safely { repo.quitarColumna(id, columnaId); respond(Json.obj("mensaje" -> "Columna eliminada")) }
   @cask.options("/api/campanas/:id/columnas/:columnaId/mensaje")
   def mensajeOptions(id: Int, columnaId: Int) = corsOptions()
   @cask.put("/api/campanas/:id/columnas/:columnaId/mensaje")

@@ -53,7 +53,7 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
           ("Regalo organizado", "boolean", "organizado"), ("Regalo entregado", "boolean", "entregado"),
           ("Recibido por", "text", "recibido_por"), ("Dibujo recibido", "boolean", "dibujo"),
           ("Agradecimiento enviado por WhatsApp", "boolean", "agradecimiento"), ("Observaciones", "text", "observaciones"))
-        columnas.foreach { case (n, t, k) => execute(c, "INSERT INTO campana_columna(campana_id, nombre, tipo, clave) VALUES (?, ?, ?, ?)", id, n, t, k) }
+        columnas.zipWithIndex.foreach { case ((n, t, k), i) => execute(c, "INSERT INTO campana_columna(campana_id, nombre, tipo, clave, orden) VALUES (?, ?, ?, ?, ?)", id, n, t, k, i + 1) }
       }
       id
     }
@@ -78,7 +78,7 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
   def detalle(id: Int): DetalleCampana = transaction { c =>
     c.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ)
     val campana = query(c, select + " WHERE c.id = ?", id)(readCampana).headOption.getOrElse(throw CampanaError(404, "La campaña ya no existe."))
-    val columnas = query(c, "SELECT * FROM campana_columna WHERE campana_id = ? ORDER BY id", id) { rs =>
+    val columnas = query(c, "SELECT * FROM campana_columna WHERE campana_id = ? ORDER BY orden NULLS LAST, id", id) { rs =>
       ColumnaCampana(rs.getInt("id"), rs.getString("nombre"), rs.getString("tipo"), Option(rs.getString("clave")), rs.getString("mensaje"), rs.getString("destinatario"), rs.getInt("version"))
     }
     val valores = query(c, "SELECT * FROM campana_valor WHERE campana_id = ?", id) { rs =>
@@ -86,14 +86,16 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
         ValorCampana(Json.parse(rs.getString("valor")), rs.getInt("version"), rs.getTimestamp("actualizado_en").toInstant.toString))
     }.groupBy(_._1).view.mapValues(_.map(v => v._2 -> v._3).toMap).toMap
     val participantes = query(c, """SELECT p.*, b.nombres AS b_nombre, b.apellidos AS b_apellido, eb.telefono AS b_telefono,
-      a.nombres AS a_nombre, a.apellidos AS a_apellido, ea.telefono AS a_telefono
+      a.nombres AS a_nombre, a.apellidos AS a_apellido, ea.telefono AS a_telefono,
+      trim(g.nombres || ' ' || coalesce(g.apellidos, '')) AS a_gestor
       FROM campana_participante p JOIN persona_natural b ON b.entidad_id = p.beneficiario_id
       JOIN entidad eb ON eb.id = b.entidad_id LEFT JOIN persona_natural a ON a.entidad_id = p.padrino_id
-      LEFT JOIN entidad ea ON ea.id = a.entidad_id WHERE p.campana_id = ? ORDER BY b.nombres, b.apellidos, p.id""", id) { rs =>
+      LEFT JOIN entidad ea ON ea.id = a.entidad_id LEFT JOIN persona_natural g ON g.entidad_id = ea.gestor_id
+      WHERE p.campana_id = ? ORDER BY b.nombres, b.apellidos, p.id""", id) { rs =>
       def contacto(prefix: String, personaId: Int) = ContactoCampana(personaId,
         (rs.getString(prefix + "_nombre") + " " + Option(rs.getString(prefix + "_apellido")).getOrElse("")).trim, Option(rs.getString(prefix + "_telefono")))
       val rowId = rs.getInt("id")
-      val padrino = Option(rs.getObject("padrino_id")).map(_ => contacto("a", rs.getInt("padrino_id")))
+      val padrino = Option(rs.getObject("padrino_id")).map(_ => contacto("a", rs.getInt("padrino_id")).copy(gestor = Option(rs.getString("a_gestor")).filter(_.nonEmpty)))
       ParticipanteCampana(rowId, contacto("b", rs.getInt("beneficiario_id")), padrino, rs.getInt("version"), valores.getOrElse(rowId, Map.empty))
     }
     DetalleCampana(campana, columnas, participantes)
@@ -129,8 +131,22 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     val nombre = AsistenciaValidacion.nombre(body.nombre); val tipo = if (body.tipo == "whatsapp") body.tipo else AsistenciaValidacion.tipo(body.tipo)
     transaction { c =>
       editable(c, id)
-      query(c, "INSERT INTO campana_columna(campana_id, nombre, tipo) VALUES (?, ?, ?) RETURNING id", id, nombre, tipo)(_.getInt(1)).head
+      query(c, """INSERT INTO campana_columna(campana_id, nombre, tipo, orden)
+        VALUES (?, ?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM campana_columna WHERE campana_id = ?)) RETURNING id""", id, nombre, tipo, id)(_.getInt(1)).head
     }
+  }
+  def ordenarColumnas(id: Int, body: OrdenarColumnasCampana): Unit = transaction { c =>
+    editable(c, id)
+    val actuales = query(c, "SELECT id FROM campana_columna WHERE campana_id = ? FOR UPDATE", id)(_.getInt(1)).toSet
+    if (body.columnas.toSet != actuales || body.columnas.distinct.size != body.columnas.size)
+      throw CampanaError(409, "Las columnas cambiaron mientras ordenabas. Actualiza e intenta nuevamente.")
+    body.columnas.zipWithIndex.foreach { case (columnaId, i) =>
+      execute(c, "UPDATE campana_columna SET orden = ? WHERE campana_id = ? AND id = ?", i + 1, id, columnaId)
+    }
+  }
+  def quitarColumna(id: Int, columnaId: Int): Unit = transaction { c =>
+    editable(c, id)
+    if (execute(c, "DELETE FROM campana_columna WHERE campana_id = ? AND id = ?", id, columnaId) == 0) throw CampanaError(404, "La columna ya no existe.")
   }
   def configurarMensaje(id: Int, columnaId: Int, body: ConfigurarMensajeCampana): Unit = transaction { c =>
     version(body.version); editable(c, id)

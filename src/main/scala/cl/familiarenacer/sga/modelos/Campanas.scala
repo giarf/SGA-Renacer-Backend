@@ -8,8 +8,9 @@ case class CrearCampana(nombre: String, fecha: LocalDate, descripcion: String = 
 case class CambiarEstadoCampana(estado: String, version: Int)
 case class RegistrarParticipante(beneficiarioId: Int)
 case class AsignarPadrino(padrinoId: Option[Int], version: Int)
-case class ContactoCampana(id: Int, nombreCompleto: String, telefono: Option[String])
+case class ContactoCampana(id: Int, nombreCompleto: String, telefono: Option[String], gestor: Option[String] = None)
 case class ColumnaCampana(id: Int, nombre: String, tipo: String, clave: Option[String], mensaje: String, destinatario: String, version: Int)
+case class OrdenarColumnasCampana(columnas: List[Int])
 case class ConfigurarMensajeCampana(mensaje: String, destinatario: String, version: Int)
 case class GuardarCeldaCampana(valor: JsValue, version: Int, columnaVersion: Option[Int] = None)
 case class ValorCampana(valor: JsValue, version: Int, actualizadoEn: String)
@@ -30,6 +31,7 @@ object CampanaMensaje {
 
 object CampanasJson {
   implicit val configurarFormat: OFormat[ConfigurarMensajeCampana] = Json.format[ConfigurarMensajeCampana]
+  implicit val ordenarColumnasFormat: OFormat[OrdenarColumnasCampana] = Json.format[OrdenarColumnasCampana]
   implicit val celdaFormat: OFormat[GuardarCeldaCampana] = Json.format[GuardarCeldaCampana]
   implicit val campanaFormat: OFormat[Campana] = Json.format[Campana]
   implicit val crearFormat: OFormat[CrearCampana] = Json.using[Json.WithDefaultValues].format[CrearCampana]

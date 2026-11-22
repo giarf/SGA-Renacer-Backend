@@ -28,7 +28,7 @@ class CampanasIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
     if (url.nonEmpty) {
       Using.resource(raw())(c => Using.resource(c.createStatement())(_.execute(s"CREATE SCHEMA $schema")))
       Using.resource(connect()) { c => Using.resource(c.createStatement()) { s =>
-        s.execute("CREATE TABLE entidad(id INTEGER PRIMARY KEY, telefono TEXT)")
+        s.execute("CREATE TABLE entidad(id INTEGER PRIMARY KEY, telefono TEXT, gestor_id INTEGER)")
         s.execute("CREATE TABLE persona_natural(entidad_id INTEGER PRIMARY KEY REFERENCES entidad(id), nombres TEXT NOT NULL, apellidos TEXT)")
         s.execute("INSERT INTO entidad VALUES (1, NULL), (2, NULL), (3, '+56912345678'), (4, '+56987654321')")
         s.execute("INSERT INTO persona_natural VALUES (1, 'Ana', 'Pérez'), (2, 'Pedro', 'Soto'), (3, 'Carolina', NULL), (4, 'José', 'Pérez')")

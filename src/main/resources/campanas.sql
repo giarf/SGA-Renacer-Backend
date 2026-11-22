@@ -43,3 +43,5 @@ CREATE TABLE IF NOT EXISTS campana_valor (
   FOREIGN KEY (campana_id, participante_id) REFERENCES campana_participante(campana_id, id) ON DELETE CASCADE,
   FOREIGN KEY (campana_id, columna_id) REFERENCES campana_columna(campana_id, id) ON DELETE CASCADE
 );
+ALTER TABLE campana_columna ADD COLUMN IF NOT EXISTS orden INTEGER;
+UPDATE campana_columna SET orden = id WHERE orden IS NULL;
