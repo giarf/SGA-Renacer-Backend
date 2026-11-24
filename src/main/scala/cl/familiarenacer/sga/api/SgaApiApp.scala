@@ -72,6 +72,7 @@ object SgaApiApp extends cask.Main {
     new CuentasRoutes(cuentaRepo),
     new AsistenciaRoutes(asistenciaRepo),
     new CampanasRoutes(campanaRepo),
+    new McpRoutes(campanaRepo),
     new ApoderadosRoutes(apoderadoRepo),
     new HuellasRoutes(huellaRepo, new cl.familiarenacer.sga.huellero.HuelleroHttp(), huellaMatcher, asistenciaRepo)
   )

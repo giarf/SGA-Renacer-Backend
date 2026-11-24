@@ -90,7 +90,11 @@ object Autenticacion {
   private val publicas: Seq[(String, scala.util.matching.Regex)] = Seq(
     // Se cargan como <img> o enlace directo, que no pueden enviar el token.
     "GET" -> "^/api/personas/\\d+/foto$".r,
-    "GET" -> "^/api/ingresos/compra/boleta/\\d+/download$".r
+    "GET" -> "^/api/ingresos/compra/boleta/\\d+/download$".r,
+    // Metadatos OAuth del servidor MCP (RFC 9728): el cliente los lee antes de tener token.
+    "GET" -> "^/\\.well-known/oauth-protected-resource(/mcp)?$".r,
+    // GET /mcp solo responde 405 (no hay SSE).
+    "GET" -> "^/mcp$".r
   )
 
   private val soloAdmin: Seq[(Set[String], scala.util.matching.Regex)] = Seq(

@@ -1001,7 +1001,7 @@ Toda ruta exige `Authorization: Bearer <token>` con el token de acceso que el fr
 
 | Requisito | Rutas |
 |-----------|-------|
-| Pública | `OPTIONS`; `GET /api/personas/:id/foto` y `GET /api/ingresos/compra/boleta/:id/download` (se cargan como `<img>`/enlace) |
+| Pública | `OPTIONS`; `GET /api/personas/:id/foto` y `GET /api/ingresos/compra/boleta/:id/download` (se cargan como `<img>`/enlace); `GET /.well-known/oauth-protected-resource[/mcp]` (servidor MCP, ver [docs/mcp.md](docs/mcp.md)) |
 | Administrador (`renacer-admin`) | `/api/usuarios/**`; editar o anular ingresos y egresos; entregar solicitudes; escribir cuentas; `PUT /api/catalogo/:id`; cualquier `DELETE` |
 | Operación diaria (`renacer-miembros` o admin) | Todo lo demás |
 
