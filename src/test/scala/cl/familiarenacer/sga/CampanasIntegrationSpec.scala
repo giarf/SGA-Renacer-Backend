@@ -89,6 +89,9 @@ class CampanasIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
     assert((ficha \ "rut").toOption.isEmpty)
     assert((ficha \ "apoderado" \ "nombre").as[String] == "José Pérez" && (ficha \ "apoderado" \ "parentesco").as[String] == "Padre")
     assert((p.padrino.get.ficha.get \ "telefono").as[String] == "+56912345678")
+    Using.resource(connect())(c => Using.resource(c.createStatement())(_.execute("UPDATE entidad SET gestor_id = 4 WHERE id = 3")))
+    val gestor = r.detalle(id).participantes.head.padrino.get.ficha.get
+    assert((gestor \ "gestor").as[String] == "José Pérez" && (gestor \ "gestorTelefono").as[String] == "+56987654321")
     assert(intercept[CampanaError](r.agregarColumna(id, CrearColumnaCampana("Edad otra vez", "ficha", Some("beneficiario.edad")))).status == 409)
     assert(intercept[CampanaError](r.agregarColumna(id, CrearColumnaCampana("Clave", "ficha", Some("beneficiario.password")))).status == 400)
     assert(intercept[CampanaError](r.guardarValor(id, row, edad, GuardarValorAsistencia(JsNumber(8), 0))).status == 400)

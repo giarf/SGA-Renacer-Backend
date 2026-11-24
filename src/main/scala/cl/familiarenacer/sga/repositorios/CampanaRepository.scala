@@ -111,11 +111,11 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     query(c, """SELECT p.entidad_id, e.rut, p.fecha_nacimiento,
         date_part('year', age(current_date, p.fecha_nacimiento))::int AS edad,
         p.genero, p.ocupacion, e.telefono, e.correo, e.direccion, e.comuna, e.sector, e.region, e.red_social, e.anotaciones,
-        nullif(trim(g.nombres || ' ' || coalesce(g.apellidos, '')), '') AS gestor,
+        nullif(trim(g.nombres || ' ' || coalesce(g.apellidos, '')), '') AS gestor, eg.telefono AS gestor_telefono,
         (SELECT string_agg(ltrim(t.nombre, '#'), ', ' ORDER BY t.nombre) FROM entidad_etiqueta ee JOIN etiqueta t ON t.id = ee.etiqueta_id WHERE ee.entidad_id = p.entidad_id) AS etiquetas,
         ap.nombre AS apoderado_nombre, ap.telefono AS apoderado_telefono, ap.parentesco AS apoderado_parentesco
       FROM persona_natural p JOIN entidad e ON e.id = p.entidad_id
-      LEFT JOIN persona_natural g ON g.entidad_id = e.gestor_id
+      LEFT JOIN persona_natural g ON g.entidad_id = e.gestor_id LEFT JOIN entidad eg ON eg.id = g.entidad_id
       LEFT JOIN LATERAL (
         SELECT trim(a.nombres || ' ' || coalesce(a.apellidos, '')) AS nombre, ea.telefono, pa.parentesco
         FROM persona_apoderado pa JOIN persona_natural a ON a.entidad_id = pa.apoderado_id JOIN entidad ea ON ea.id = a.entidad_id
@@ -131,7 +131,8 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
         "genero" -> texto("genero").map(JsString), "ocupacion" -> texto("ocupacion").map(JsString), "telefono" -> texto("telefono").map(JsString),
         "correo" -> texto("correo").map(JsString), "direccion" -> texto("direccion").map(JsString), "comuna" -> texto("comuna").map(JsString),
         "sector" -> texto("sector").map(JsString), "region" -> texto("region").map(JsString), "redSocial" -> texto("red_social").map(JsString),
-        "anotaciones" -> texto("anotaciones").map(JsString), "gestor" -> texto("gestor").map(JsString), "etiquetas" -> texto("etiquetas").map(JsString),
+        "anotaciones" -> texto("anotaciones").map(JsString), "gestor" -> texto("gestor").map(JsString),
+        "gestorTelefono" -> texto("gestor").flatMap(_ => texto("gestor_telefono")).map(JsString), "etiquetas" -> texto("etiquetas").map(JsString),
         "apoderado" -> apoderado).collect { case (k, Some(v)) => k -> v }
       rs.getInt("entidad_id") -> JsObject(campos)
     }.toMap
