@@ -2,7 +2,7 @@ package cl.familiarenacer.sga
 
 import cl.familiarenacer.sga.api.routes.McpRoutes
 import cl.familiarenacer.sga.auth.{Autenticacion, FiltroAutenticacion, Requisito}
-import cl.familiarenacer.sga.mcp.{ConfigMcp, HerramientasCampanas, ServidorMcp}
+import cl.familiarenacer.sga.mcp.{AutorizacionMcp, ConfigMcp, HerramientasCampanas, ServidorMcp}
 import cl.familiarenacer.sga.modelos._
 import cl.familiarenacer.sga.repositorios.CampanaRepository
 import org.scalatest.BeforeAndAfterAll
@@ -127,17 +127,83 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
     assert(Autenticacion.requisito("POST", "/mcp") == Requisito.Operador)
     assert(Autenticacion.requisito("GET", "/.well-known/oauth-protected-resource") == Requisito.Publico)
     assert(Autenticacion.requisito("GET", "/.well-known/oauth-protected-resource/mcp") == Requisito.Publico)
+    assert(Autenticacion.requisito("GET", "/.well-known/oauth-authorization-server") == Requisito.Publico)
+    assert(Autenticacion.requisito("GET", "/.well-known/openid-configuration") == Requisito.Publico)
+    assert(Autenticacion.requisito("POST", "/oauth/register") == Requisito.Publico)
+    assert(Autenticacion.requisito("GET", "/oauth/register") == Requisito.Operador)
     assert(ConfigMcp.urlPublica(Map.empty) == "https://api.familiarenacer.cl/mcp")
     assert(ConfigMcp.urlPublica(Map("MCP_PUBLIC_URL" -> "  ")) == "https://api.familiarenacer.cl/mcp")
     assert(ConfigMcp.urlPublica(Map("MCP_PUBLIC_URL" -> "http://localhost:8080/mcp/")) == "http://localhost:8080/mcp")
     assert(ConfigMcp.urlMetadatos("https://api.example.cl/mcp") == "https://api.example.cl/.well-known/oauth-protected-resource/mcp")
   }
 
+  // ===== Fachada de autorización =====
+
+  private val emisor = "https://auth.example.test/application/o/sga-renacer/"
+  private var lecturas = 0
+  private val autorizacion = new AutorizacionMcp(emisor, "sga-renacer-frontend", { url =>
+    lecturas += 1
+    assert(url == emisor + ".well-known/openid-configuration")
+    Some(Json.obj("issuer" -> emisor, "authorization_endpoint" -> "https://auth.example.test/application/o/authorize/",
+      "token_endpoint" -> "https://auth.example.test/application/o/token/", "jwks_uri" -> (emisor + "jwks/"),
+      "grant_types_supported" -> Json.arr("password", "implicit")))
+  })
+
+  test("metadatos del servidor de autorización: endpoints de Authentik y registro propio") {
+    val m = autorizacion.metadatos("https://api.example.cl")
+    assert((m \ "issuer").as[String] == "https://api.example.cl")
+    assert((m \ "authorization_endpoint").as[String] == "https://auth.example.test/application/o/authorize/")
+    assert((m \ "token_endpoint").as[String] == "https://auth.example.test/application/o/token/")
+    assert((m \ "jwks_uri").as[String] == emisor + "jwks/")
+    // Lo que Authentik no publicó sale de los endpoints conocidos.
+    assert((m \ "revocation_endpoint").as[String] == "https://auth.example.test/application/o/revoke/")
+    assert((m \ "userinfo_endpoint").as[String] == "https://auth.example.test/application/o/userinfo/")
+    assert((m \ "registration_endpoint").as[String] == "https://api.example.cl/oauth/register")
+    assert((m \ "code_challenge_methods_supported").as[List[String]] == List("S256"))
+    assert((m \ "token_endpoint_auth_methods_supported").as[List[String]] == List("none"))
+    assert((m \ "grant_types_supported").as[List[String]] == List("authorization_code", "refresh_token"))
+    assert((m \ "response_types_supported").as[List[String]] == List("code"))
+    assert((m \ "scopes_supported").as[List[String]].contains("offline_access"))
+    autorizacion.metadatos("https://api.example.cl")
+    assert(lecturas == 1, "los metadatos de Authentik quedan en caché")
+    assert(autorizacion.base("https://api.example.cl/mcp") == "https://api.example.cl")
+  }
+
+  test("si Authentik no responde, usa los endpoints conocidos") {
+    val m = new AutorizacionMcp(emisor, "x", _ => None).metadatos("https://api.example.cl")
+    assert((m \ "authorization_endpoint").as[String] == "https://auth.example.test/application/o/authorize/")
+    assert((m \ "jwks_uri").as[String] == emisor + "jwks/")
+  }
+
+  test("registro dinámico: entrega el client_id público del SGA para redirecciones loopback") {
+    val redirs = Json.arr("http://127.0.0.1:19876/mcp/oauth/callback", "http://localhost:5555/callback")
+    val (status, r) = autorizacion.registrar(Json.obj("client_name" -> "OpenCode", "redirect_uris" -> redirs,
+      "grant_types" -> Json.arr("authorization_code", "refresh_token"), "token_endpoint_auth_method" -> "none").toString)
+    assert(status == 201)
+    assert((r \ "client_id").as[String] == "sga-renacer-frontend")
+    assert((r \ "token_endpoint_auth_method").as[String] == "none")
+    assert((r \ "redirect_uris").as[JsArray] == redirs)
+    assert((r \ "grant_types").as[List[String]] == List("authorization_code", "refresh_token"))
+    assert((r \ "response_types").as[List[String]] == List("code"))
+    assert((r \ "client_id_issued_at").as[Long] > 0)
+    assert((r \ "client_secret").isEmpty)
+  }
+
+  test("registro dinámico: rechaza redirecciones que no son loopback") {
+    Seq("https://evil.example/callback", "http://127.0.0.1/callback", "https://127.0.0.1:19876/callback",
+      "http://127.0.0.1.evil.example:80/cb", "http://user@127.0.0.1:1/cb", "no es url").foreach { uri =>
+      val (status, r) = autorizacion.registrar(Json.obj("redirect_uris" -> Json.arr("http://127.0.0.1:1/ok", uri)).toString)
+      assert(status == 400 && (r \ "error").as[String] == "invalid_redirect_uri", uri)
+    }
+    assert(autorizacion.registrar("""{"client_name":"x"}""")._1 == 400)
+    assert(autorizacion.registrar("no json") == (400 -> AutorizacionMcp.error("invalid_client_metadata", "El cuerpo debe ser un objeto JSON.")))
+  }
+
   // ===== HTTP con el decorador real =====
 
   private val app = new cask.Main {
     override def mainDecorators = Seq(new FiltroAutenticacion())
-    val allRoutes = Seq(new McpRoutes(new CampanaRepositoryFalso), new cl.familiarenacer.sga.api.routes.CampanasRoutes(new CampanaRepositoryFalso))
+    val allRoutes = Seq(new McpRoutes(new CampanaRepositoryFalso, autorizacion), new cl.familiarenacer.sga.api.routes.CampanasRoutes(new CampanaRepositoryFalso))
   }
   private val server = io.undertow.Undertow.builder().addHttpListener(0, "127.0.0.1").setHandler(app.defaultHandler).build()
   private val client = HttpClient.newHttpClient()
@@ -161,7 +227,7 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
       assert(r.statusCode() == 200, ruta)
       val j = Json.parse(r.body())
       assert((j \ "resource").as[String] == ConfigMcp.urlPublica())
-      assert((j \ "authorization_servers").as[List[String]] == List(Autenticacion.issuer))
+      assert((j \ "authorization_servers").as[List[String]] == List(autorizacion.base()))
       assert((j \ "scopes_supported").as[List[String]].contains("offline_access"))
       assert((j \ "bearer_methods_supported").as[List[String]] == List("header"))
     }
@@ -180,5 +246,21 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
     // Las demás rutas siguen sin el header.
     val api = send("GET", "/api/campanas")
     assert(api.statusCode() == 401 && api.headers().firstValue("WWW-Authenticate").isEmpty)
+  }
+
+  test("metadatos del servidor de autorización y registro son públicos por HTTP") {
+    Seq("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").foreach { ruta =>
+      val r = send("GET", ruta)
+      assert(r.statusCode() == 200, ruta)
+      val j = Json.parse(r.body())
+      assert((j \ "issuer").as[String] == autorizacion.base())
+      assert((j \ "registration_endpoint").as[String] == autorizacion.base() + "/oauth/register")
+    }
+    val ok = send("POST", "/oauth/register", """{"redirect_uris":["http://127.0.0.1:19876/mcp/oauth/callback"]}""", Seq("Content-Type" -> "application/json"))
+    assert(ok.statusCode() == 201 && (Json.parse(ok.body()) \ "client_id").as[String] == "sga-renacer-frontend")
+    val malo = send("POST", "/oauth/register", """{"redirect_uris":["https://evil.example/cb"]}""", Seq("Content-Type" -> "application/json"))
+    assert(malo.statusCode() == 400 && (Json.parse(malo.body()) \ "error").as[String] == "invalid_redirect_uri")
+    val pre = send("OPTIONS", "/oauth/register", headers = Seq("Origin" -> "https://sga.familiarenacer.cl", "Access-Control-Request-Method" -> "POST"))
+    assert(pre.statusCode() == 204)
   }
 }

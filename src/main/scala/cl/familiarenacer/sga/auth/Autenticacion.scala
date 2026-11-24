@@ -93,6 +93,9 @@ object Autenticacion {
     "GET" -> "^/api/ingresos/compra/boleta/\\d+/download$".r,
     // Metadatos OAuth del servidor MCP (RFC 9728): el cliente los lee antes de tener token.
     "GET" -> "^/\\.well-known/oauth-protected-resource(/mcp)?$".r,
+    // Fachada de autorización para clientes MCP: metadatos y registro dinámico (siempre el cliente público).
+    "GET" -> "^/\\.well-known/(oauth-authorization-server|openid-configuration)$".r,
+    "POST" -> "^/oauth/register$".r,
     // GET /mcp solo responde 405 (no hay SSE).
     "GET" -> "^/mcp$".r
   )
