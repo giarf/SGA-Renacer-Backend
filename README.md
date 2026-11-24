@@ -1018,6 +1018,7 @@ El proveedor de Authentik debe tener **clave de firma RS256** (si no, firma con 
 | `AUTHENTIK_ADMIN_TOKEN` | — | Token de la cuenta de servicio `sga-backend` (rol `sga-admin-usuarios`). Nunca en el frontend |
 | `AUTHENTIK_MEMBER_GROUP` / `AUTHENTIK_ADMIN_GROUP` / `AUTHENTIK_GATE_ADMIN_GROUP` | `renacer-miembros` / `renacer-admin` / `renacer-puerta` | Grupos del SGA |
 | `AUTHENTIK_USER_PATH` | `renacer` | Ruta de los usuarios de Renacer en Authentik |
+| `MCP_PUBLIC_URL` | `https://api.familiarenacer.cl/mcp` | URL pública del servidor MCP ([docs/mcp.md](docs/mcp.md)); cambiarla solo en local u otro dominio |
 
 ### Usuarios (`/api/usuarios`, solo administradores)
 

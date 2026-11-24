@@ -36,7 +36,7 @@ claude mcp add --transport http sga-campanas https://api.familiarenacer.cl/mcp \
 
 | Variable | Valor por defecto | Uso |
 |----------|-------------------|-----|
-| `MCP_PUBLIC_URL` | se deduce de `X-Forwarded-Proto`/`X-Forwarded-Host`/`Host` | URL pública exacta de `/mcp` que va en `resource` y en `WWW-Authenticate`. Conviene fijarla en producción |
+| `MCP_PUBLIC_URL` | `https://api.familiarenacer.cl/mcp` | URL pública exacta de `/mcp` que va en `resource` y en `WWW-Authenticate`. En producción no hace falta definirla; sirve para local u otro dominio |
 
 ## Herramientas
 
@@ -57,7 +57,7 @@ vuelven como resultado con `isError: true`.
 Sin base de datos, con campañas en memoria y sin autenticación:
 
 ```sh
-AUTH_MODE=off sbt "Test/runMain cl.familiarenacer.sga.McpLocal"
+AUTH_MODE=off MCP_PUBLIC_URL=http://localhost:8080/mcp sbt "Test/runMain cl.familiarenacer.sga.McpLocal"
 curl -s localhost:8080/mcp -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"resumen_campana","arguments":{"id":1}}}'
 ```

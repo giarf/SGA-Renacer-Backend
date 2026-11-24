@@ -3,7 +3,6 @@ package cl.familiarenacer.sga.auth
 import cask.model.{Request, Response}
 import cask.router.Result
 import cl.familiarenacer.sga.api.ApiSupport
-import cl.familiarenacer.sga.api.routes.McpRoutes
 import cl.familiarenacer.sga.mcp.ConfigMcp
 import play.api.libs.json.Json
 
@@ -39,9 +38,8 @@ class FiltroAutenticacion extends cask.RawDecorator with ApiSupport {
           delegate(ctx, Map())
         case Left((401, motivo)) if ConfigMcp.esRutaMcp(ruta) =>
           // MCP (RFC 9728 §5.1): el cliente descubre el servidor de autorización desde este header.
-          val recurso = ConfigMcp.urlRecurso(McpRoutes.host(ctx.exchange), McpRoutes.proto(ctx.exchange))
           val r = respond(Json.obj("error" -> motivo), 401)
-          Result.Success(r.copy(headers = r.headers :+ ("WWW-Authenticate" -> s"""Bearer resource_metadata="${ConfigMcp.urlMetadatos(recurso)}"""")))
+          Result.Success(r.copy(headers = r.headers :+ ("WWW-Authenticate" -> s"""Bearer resource_metadata="${ConfigMcp.urlMetadatos(ConfigMcp.urlPublica())}"""")))
         case Left((codigo, motivo)) =>
           Result.Success(respond(Json.obj("error" -> motivo), codigo))
       }

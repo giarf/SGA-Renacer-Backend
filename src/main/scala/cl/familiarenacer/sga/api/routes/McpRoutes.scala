@@ -31,21 +31,13 @@ class McpRoutes(repo: CampanaRepository)(implicit cc: castor.Context, log: cask.
   def mcpDelete() = json(Json.obj("error" -> "Este servidor MCP no usa sesiones."), 405, Seq("Allow" -> "POST"))
 
   @cask.get(ConfigMcp.rutaMetadatos)
-  def metadatos(request: cask.Request) = metadatosRecurso(request)
+  def metadatos() = metadatosRecurso()
   @cask.get(ConfigMcp.rutaMetadatos + ConfigMcp.ruta)
-  def metadatosMcp(request: cask.Request) = metadatosRecurso(request)
+  def metadatosMcp() = metadatosRecurso()
 
-  private def metadatosRecurso(request: cask.Request) = {
-    val recurso = ConfigMcp.urlRecurso(McpRoutes.host(request.exchange), McpRoutes.proto(request.exchange))
-    json(ConfigMcp.metadatos(recurso, Autenticacion.issuer), extra = Seq("Access-Control-Allow-Origin" -> "*", "Cache-Control" -> "max-age=3600"))
+  private def metadatosRecurso() = {
+    json(ConfigMcp.metadatos(ConfigMcp.urlPublica(), Autenticacion.issuer), extra = Seq("Access-Control-Allow-Origin" -> "*", "Cache-Control" -> "max-age=3600"))
   }
 
   initialize()
-}
-
-object McpRoutes {
-  def host(ex: io.undertow.server.HttpServerExchange): Option[String] =
-    Option(ex.getRequestHeaders.getFirst("X-Forwarded-Host")).orElse(Option(ex.getRequestHeaders.getFirst("Host")))
-  def proto(ex: io.undertow.server.HttpServerExchange): Option[String] =
-    Option(ex.getRequestHeaders.getFirst("X-Forwarded-Proto")).orElse(Option(ex.getRequestScheme))
 }

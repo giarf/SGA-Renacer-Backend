@@ -4,19 +4,16 @@ import play.api.libs.json._
 
 import java.net.URI
 
-/** Dónde se publica el servidor MCP. MCP_PUBLIC_URL fija la URL; si falta, se deduce de la petición. */
+/** Dónde se publica el servidor MCP. MCP_PUBLIC_URL la cambia (p. ej. en local); por defecto, la de producción. */
 object ConfigMcp {
   val ruta = "/mcp"
   val rutaMetadatos = "/.well-known/oauth-protected-resource"
   val scopes = Seq("openid", "profile", "email", "offline_access")
+  val urlProduccion = "https://api.familiarenacer.cl/mcp"
 
-  def urlFija: Option[String] = sys.env.get("MCP_PUBLIC_URL").map(_.trim.stripSuffix("/")).filter(_.nonEmpty)
-
-  /** URL pública de /mcp; `host` y `proto` vienen de la petición (Host / X-Forwarded-*). */
-  def urlRecurso(host: Option[String], proto: Option[String]): String = urlFija.getOrElse {
-    val esquema = proto.map(_.split(',').head.trim.toLowerCase).filter(Set("http", "https").contains).getOrElse("http")
-    s"$esquema://${host.map(_.split(',').head.trim).filter(_.nonEmpty).getOrElse("localhost")}$ruta"
-  }
+  /** URL pública de /mcp, que va en `resource` y en el header WWW-Authenticate. */
+  def urlPublica(env: Map[String, String] = sys.env): String =
+    env.get("MCP_PUBLIC_URL").map(_.trim.stripSuffix("/")).filter(_.nonEmpty).getOrElse(urlProduccion)
 
   /** RFC 9728 §3.1: el documento va en /.well-known/oauth-protected-resource + ruta del recurso. */
   def urlMetadatos(recurso: String): String = {

@@ -127,6 +127,9 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
     assert(Autenticacion.requisito("POST", "/mcp") == Requisito.Operador)
     assert(Autenticacion.requisito("GET", "/.well-known/oauth-protected-resource") == Requisito.Publico)
     assert(Autenticacion.requisito("GET", "/.well-known/oauth-protected-resource/mcp") == Requisito.Publico)
+    assert(ConfigMcp.urlPublica(Map.empty) == "https://api.familiarenacer.cl/mcp")
+    assert(ConfigMcp.urlPublica(Map("MCP_PUBLIC_URL" -> "  ")) == "https://api.familiarenacer.cl/mcp")
+    assert(ConfigMcp.urlPublica(Map("MCP_PUBLIC_URL" -> "http://localhost:8080/mcp/")) == "http://localhost:8080/mcp")
     assert(ConfigMcp.urlMetadatos("https://api.example.cl/mcp") == "https://api.example.cl/.well-known/oauth-protected-resource/mcp")
   }
 
@@ -157,7 +160,7 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
       val r = send("GET", ruta)
       assert(r.statusCode() == 200, ruta)
       val j = Json.parse(r.body())
-      assert((j \ "resource").as[String].endsWith("/mcp"))
+      assert((j \ "resource").as[String] == ConfigMcp.urlPublica())
       assert((j \ "authorization_servers").as[List[String]] == List(Autenticacion.issuer))
       assert((j \ "scopes_supported").as[List[String]].contains("offline_access"))
       assert((j \ "bearer_methods_supported").as[List[String]] == List("header"))
@@ -171,7 +174,7 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
       val r = send("POST", "/mcp", cuerpo, h :+ ("Content-Type" -> "application/json"))
       assert(r.statusCode() == 401)
       val www = r.headers().firstValue("WWW-Authenticate").orElse("")
-      assert(www.startsWith("Bearer resource_metadata=\"") && www.contains("/.well-known/oauth-protected-resource/mcp\""), www)
+      assert(www == s"""Bearer resource_metadata="${ConfigMcp.urlMetadatos(ConfigMcp.urlPublica())}"""", www)
     }
     assert(send("GET", "/mcp").statusCode() == 405)
     // Las demás rutas siguen sin el header.
