@@ -1,6 +1,7 @@
 package cl.familiarenacer.sga.mcp
 
 import cl.familiarenacer.sga.modelos._
+import cl.familiarenacer.sga.modelos.CampanasJson._
 import cl.familiarenacer.sga.repositorios.CampanaRepository
 import play.api.libs.json._
 
@@ -10,11 +11,11 @@ import scala.util.control.NonFatal
 /** Error de uso de una herramienta (argumento inválido, campaña inexistente…): vuelve al cliente como `isError`. */
 case class ErrorHerramienta(mensaje: String) extends RuntimeException(mensaje)
 
-case class Herramienta(nombre: String, titulo: String, descripcion: String, esquema: JsObject, ejecutar: JsObject => JsValue)
+case class Herramienta(nombre: String, titulo: String, descripcion: String, esquema: JsObject, ejecutar: JsObject => JsValue,
+                       soloLectura: Boolean = true, destructiva: Boolean = false)
 
 /**
- * Herramientas MCP de solo lectura sobre las campañas. Leen con CampanaRepository.listar/detalle
- * y arman respuestas pensadas para un modelo: columnas por nombre, valores legibles y totales.
+ * Herramientas MCP de campañas; comparten el repositorio y las validaciones de la API.
  */
 class HerramientasCampanas(repo: CampanaRepository) {
   import HerramientasCampanas._
@@ -59,13 +60,17 @@ class HerramientasCampanas(repo: CampanaRepository) {
       Json.obj("type" -> "object", "properties" -> Json.obj(
         "texto" -> Json.obj("type" -> "string", "minLength" -> 2, "description" -> "Nombre o parte del nombre (sin distinguir mayúsculas ni acentos).")
       ), "required" -> Json.arr("texto"), "additionalProperties" -> false),
-      buscarEnCampanas)
-  )
+      buscarEnCampanas),
+    Herramienta("detalle_campana_api", "Detalle de campaña con versiones",
+      "Devuelve el mismo detalle que la API, incluidos IDs, versiones, opciones y valores guardados. Consulta antes de editar.",
+      Json.obj("type" -> "object", "properties" -> Json.obj("id" -> Json.obj("type" -> "integer")), "required" -> Json.arr("id"), "additionalProperties" -> false),
+      a => Json.toJson(repo.detalle((a \ "id").as[Int])))
+  ) ++ EscrituraCampanas.herramientas(repo)
 
   def definiciones: JsArray = JsArray(herramientas.map { h =>
     Json.obj("name" -> h.nombre, "title" -> h.titulo, "description" -> h.descripcion, "inputSchema" -> h.esquema,
-      "annotations" -> Json.obj("title" -> h.titulo, "readOnlyHint" -> true, "destructiveHint" -> false,
-        "idempotentHint" -> true, "openWorldHint" -> false))
+      "annotations" -> Json.obj("title" -> h.titulo, "readOnlyHint" -> h.soloLectura, "destructiveHint" -> h.destructiva,
+        "idempotentHint" -> h.soloLectura, "openWorldHint" -> false))
   })
 
   /** None si la herramienta no existe; si no, el resultado de tools/call. */
@@ -74,6 +79,9 @@ class HerramientasCampanas(repo: CampanaRepository) {
       case e: ErrorHerramienta => resultado(JsString(e.mensaje), error = true)
       case e: CampanaError => resultado(JsString(e.mensaje), error = true)
       case e: AsistenciaError => resultado(JsString(e.mensaje), error = true)
+      case _: JsResultException => resultado(JsString("Revisa los tipos y valores de los argumentos."), error = true)
+      case e: java.sql.SQLException if e.getSQLState == "23505" => resultado(JsString("El beneficiario o el nombre de columna ya está registrado."), error = true)
+      case e: java.sql.SQLException if e.getSQLState == "23503" => resultado(JsString("La campaña o la persona ya no existe."), error = true)
       case NonFatal(e) => e.printStackTrace(); resultado(JsString("No se pudo consultar las campañas. Intenta nuevamente."), error = true)
     }
   }
@@ -217,6 +225,7 @@ class HerramientasCampanas(repo: CampanaRepository) {
     c.tipo match {
       case "ficha" => base ++ Json.obj("datoFicha" -> c.clave, "soloLectura" -> true)
       case "whatsapp" => base ++ Json.obj("destinatario" -> destinatarioLegible(c.destinatario), "mensaje" -> c.mensaje)
+      case "select" => base ++ Json.obj("opciones" -> c.opciones)
       case _ => base
     }
   }
@@ -232,6 +241,7 @@ class HerramientasCampanas(repo: CampanaRepository) {
         case Array("padrino", dato) => p.padrino.flatMap(_.ficha).flatMap(f => (f \ dato).toOption)
       }.flatten.getOrElse(JsNull)
       case "whatsapp" => JsString(if (guardado.flatMap(v => (v \ "enviado").asOpt[Boolean]).contains(true)) "enviado" else "pendiente")
+      case "select" => guardado.flatMap(_.asOpt[String]).flatMap(id => c.opciones.find(_.id == id)).map(o => JsString(o.nombre)).getOrElse(JsNull)
       case _ => guardado.getOrElse(JsNull)
     }
   }
@@ -252,6 +262,8 @@ object HerramientasCampanas {
     case "boolean" => "casilla (sí/no)"
     case "text" => "texto"
     case "number" => "número"
+    case "select" => "selección única"
+    case "rating" => "calificación (0 a 5 estrellas)"
     case "whatsapp" => "mensaje de WhatsApp"
     case "ficha" => "dato de la ficha (solo lectura)"
     case otro => otro

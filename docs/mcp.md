@@ -1,6 +1,6 @@
 # Servidor MCP de campañas
 
-El backend publica un servidor [MCP](https://modelcontextprotocol.io) **de solo lectura** con las campañas,
+El backend publica un servidor [MCP](https://modelcontextprotocol.io) **de lectura y escritura** con las campañas,
 para consultarlas desde un asistente (Claude, ChatGPT, Cursor, etc.).
 
 - **URL:** `https://<host del API>/mcp` (p. ej. `https://api.familiarenacer.cl/mcp`)
@@ -48,7 +48,14 @@ Si un cliente sí permite escribir client_id, también funciona con `sga-renacer
 
 ## Herramientas
 
-Todas son de solo lectura (`readOnlyHint: true`); no hay herramientas que escriban o borren.
+Las consultas conservan `readOnlyHint: true`. Las herramientas de escritura comparten permisos de operador, repositorio y validaciones con la API de Campañas:
+
+- `crear_campana`, `cambiar_estado_campana`.
+- `agregar_participante_campana`, `asignar_padrino_campana`, `quitar_participante_campana`.
+- `agregar_columna_campana`, `ordenar_columnas_campana`, `eliminar_columna_campana`.
+- `configurar_opciones_campana`, `configurar_mensaje_campana`, `guardar_celda_campana`.
+
+Antes de editar, consulta `detalle_campana_api` para obtener los IDs y versiones. En selección única, escribe el ID de la opción; en calificación, un entero de 0 a 5 o `null`. Las herramientas no envían mensajes de WhatsApp.
 
 | Herramienta | Parámetros | Devuelve |
 |-------------|-----------|----------|

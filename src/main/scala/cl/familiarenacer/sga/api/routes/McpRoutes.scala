@@ -6,7 +6,7 @@ import cl.familiarenacer.sga.repositorios.CampanaRepository
 import play.api.libs.json._
 
 /**
- * Servidor MCP de solo lectura sobre campañas (ver docs/mcp.md). /mcp exige sesión de operación
+ * Servidor MCP de lectura y escritura sobre campañas (ver docs/mcp.md). /mcp exige sesión de operación
  * diaria como el resto del API; los metadatos OAuth del recurso (RFC 9728) son públicos.
  */
 class McpRoutes(repo: CampanaRepository, autorizacion: AutorizacionMcp = new AutorizacionMcp(Autenticacion.issuer, Autenticacion.clientId))

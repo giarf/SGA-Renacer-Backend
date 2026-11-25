@@ -34,6 +34,10 @@ class CampanaRepositoryFalso extends CampanaRepository(() => throw new IllegalSt
       ParticipanteCampana(102, contacto(5, "José Ramírez"), None, 1, Map.empty))),
     2 -> DetalleCampana(invierno, Nil, List(ParticipanteCampana(200, contacto(3, "Carolina Muñoz"), Some(contacto(1, "Ana Pérez")), 1, Map.empty))))
   override def listar(): List[Campana] = List(navidad, invierno)
+  override def guardarCelda(id: Int, participanteId: Int, columnaId: Int, body: GuardarCeldaCampana): ValorCampana = {
+    require((id, participanteId, columnaId, body.version, body.columnaVersion) == ((1, 100, 14, 0, Some(2))))
+    v(body.valor)
+  }
   override def detalle(id: Int): DetalleCampana = detalles.getOrElse(id, throw CampanaError(404, "La campaña ya no existe."))
 }
 
@@ -45,6 +49,13 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
     val r = (rpc("tools/call", Json.obj("name" -> nombre, "arguments" -> args)) \ "result").as[JsObject]
     val texto = (r \ "content" \ 0 \ "text").as[String]
     ((r \ "isError").as[Boolean], if ((r \ "isError").as[Boolean]) JsString(texto) else Json.parse(texto))
+  }
+
+  test("guardar_celda_campana conserva cero y pasa las versiones al repositorio") {
+    val args = Json.obj("id" -> 1, "participanteId" -> 100, "columnaId" -> 14, "version" -> 0, "columnaVersion" -> 2, "valor" -> 0)
+    val (error, valor) = llamar("guardar_celda_campana", args)
+    assert(!error && (valor \ "valor").as[Int] == 0)
+    assert(llamar("guardar_celda_campana", args - "version")._1)
   }
 
   test("initialize negocia la versión e incluye instrucciones; la notificación initialized responde 202") {
@@ -61,12 +72,13 @@ class McpSpec extends AnyFunSuite with BeforeAndAfterAll {
     assert(servidor.procesar("{no json").status == 400)
   }
 
-  test("tools/list publica las cuatro herramientas de solo lectura con su esquema") {
+  test("tools/list diferencia consultas y escrituras") {
     val tools = (rpc("tools/list") \ "result" \ "tools").as[List[JsObject]]
-    assert(tools.map(t => (t \ "name").as[String]).toSet == Set("listar_campanas", "ver_campana", "resumen_campana", "buscar_en_campanas"))
+    assert(tools.size == 16)
     tools.foreach { t =>
       assert((t \ "inputSchema" \ "type").as[String] == "object")
-      assert((t \ "annotations" \ "readOnlyHint").as[Boolean])
+      val nombre = (t \ "name").as[String]
+      assert((t \ "annotations" \ "readOnlyHint").as[Boolean] == Set("listar_campanas", "ver_campana", "resumen_campana", "buscar_en_campanas", "detalle_campana_api")(nombre))
     }
   }
 

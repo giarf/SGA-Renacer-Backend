@@ -69,7 +69,7 @@ class ServidorMcp(herramientas: HerramientasCampanas) {
       ok(id, Json.obj(
         "protocolVersion" -> version,
         "capabilities" -> Json.obj("tools" -> Json.obj("listChanged" -> false)),
-        "serverInfo" -> Json.obj("name" -> "sga-renacer-campanas", "title" -> "SGA Renacer · Campañas", "version" -> "0.1.0"),
+        "serverInfo" -> Json.obj("name" -> "sga-renacer-campanas", "title" -> "SGA Renacer · Campañas", "version" -> "0.2.0"),
         "instructions" -> instrucciones
       ))
     case "ping" => ok(id, Json.obj())
@@ -99,7 +99,7 @@ object ServidorMcp {
     Json.obj("jsonrpc" -> "2.0", "id" -> id, "error" -> Json.obj("code" -> codigo, "message" -> mensaje))
 
   val instrucciones: String =
-    """Servidor de solo lectura con las campañas del SGA de la Fundación Familia Renacer.
+    """Servidor para consultar y editar las campañas del SGA de la Fundación Familia Renacer.
       |
       |Qué es una campaña: una actividad con fecha y estado (borrador, activa o cerrada; una cerrada ya no se edita), por ejemplo
       |un apadrinamiento de Navidad. Sus participantes son los beneficiarios (los ahijados). A cada beneficiario se le puede
@@ -120,6 +120,8 @@ object ServidorMcp {
       |   revisa totalFiltrados y hayMas antes de concluir que no hay más filas.
       |4. buscar_en_campanas para saber en qué campañas aparece una persona y con qué rol (beneficiario o padrino).
       |Los valores de las columnas vienen por el nombre de la columna; null significa celda vacía.
-      |Estas herramientas no modifican nada: para editar hay que usar el SGA (https://sga.familiarenacer.cl).
+      |Antes de editar, usa detalle_campana_api para obtener los IDs y versiones actuales. Si hay conflicto, vuelve a consultar.
+      |Las columnas select guardan el ID de la opción, y rating admite enteros de 0 a 5. No confundas cero con null.
+      |No hagas cambios sin solicitud del usuario. Pide confirmación explícita antes de borrar columnas o retirar participantes.
       |Los datos son personales (nombres, teléfonos, edades de niños): úsalos solo para la gestión de la campaña.""".stripMargin
 }
