@@ -9,7 +9,9 @@ case class CambiarEstadoCampana(estado: String, version: Int)
 case class RegistrarParticipante(beneficiarioId: Int)
 case class AsignarPadrino(padrinoId: Option[Int], version: Int)
 case class ContactoCampana(id: Int, nombreCompleto: String, telefono: Option[String], gestor: Option[String] = None, ficha: Option[JsObject] = None)
-case class CrearColumnaCampana(nombre: String, tipo: String, campo: Option[String] = None)
+case class OpcionCampana(id: String, nombre: String)
+case class ConfigurarOpcionesCampana(opciones: List[OpcionCampana], version: Int)
+case class CrearColumnaCampana(nombre: String, tipo: String, campo: Option[String] = None, opciones: List[OpcionCampana] = Nil)
 
 /** Datos de la ficha de una persona que pueden mostrarse como columna de solo lectura en una campaña. */
 object CampanaFicha {
@@ -21,7 +23,7 @@ object CampanaFicha {
     case _ => throw CampanaError(400, "Selecciona un dato de la ficha válido.")
   }
 }
-case class ColumnaCampana(id: Int, nombre: String, tipo: String, clave: Option[String], mensaje: String, destinatario: String, version: Int)
+case class ColumnaCampana(id: Int, nombre: String, tipo: String, clave: Option[String], mensaje: String, destinatario: String, version: Int, opciones: List[OpcionCampana] = Nil)
 case class OrdenarColumnasCampana(columnas: List[Int])
 case class ConfigurarMensajeCampana(mensaje: String, destinatario: String, version: Int)
 case class GuardarCeldaCampana(valor: JsValue, version: Int, columnaVersion: Option[Int] = None)
@@ -42,6 +44,8 @@ object CampanaMensaje {
 }
 
 object CampanasJson {
+  implicit val opcionFormat: OFormat[OpcionCampana] = Json.format[OpcionCampana]
+  implicit val opcionesFormat: OFormat[ConfigurarOpcionesCampana] = Json.format[ConfigurarOpcionesCampana]
   implicit val configurarFormat: OFormat[ConfigurarMensajeCampana] = Json.format[ConfigurarMensajeCampana]
   implicit val ordenarColumnasFormat: OFormat[OrdenarColumnasCampana] = Json.format[OrdenarColumnasCampana]
   implicit val crearColumnaCampanaFormat: OFormat[CrearColumnaCampana] = Json.using[Json.WithDefaultValues].format[CrearColumnaCampana]

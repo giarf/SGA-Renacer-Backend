@@ -1,6 +1,7 @@
 package cl.familiarenacer.sga.repositorios
 
 import cl.familiarenacer.sga.modelos._
+import cl.familiarenacer.sga.modelos.CampanasJson.opcionFormat
 import java.sql.{Connection, PreparedStatement, ResultSet}
 import play.api.libs.json._
 import scala.collection.mutable.ListBuffer
@@ -79,7 +80,7 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
     c.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ)
     val campana = query(c, select + " WHERE c.id = ?", id)(readCampana).headOption.getOrElse(throw CampanaError(404, "La campaña ya no existe."))
     val columnas = query(c, "SELECT * FROM campana_columna WHERE campana_id = ? ORDER BY orden NULLS LAST, id", id) { rs =>
-      ColumnaCampana(rs.getInt("id"), rs.getString("nombre"), rs.getString("tipo"), Option(rs.getString("clave")), rs.getString("mensaje"), rs.getString("destinatario"), rs.getInt("version"))
+      ColumnaCampana(rs.getInt("id"), rs.getString("nombre"), rs.getString("tipo"), Option(rs.getString("clave")), rs.getString("mensaje"), rs.getString("destinatario"), rs.getInt("version"), Json.parse(rs.getString("opciones")).as[List[OpcionCampana]])
     }
     val valores = query(c, "SELECT * FROM campana_valor WHERE campana_id = ?", id) { rs =>
       (rs.getInt("participante_id"), rs.getInt("columna_id").toString,
@@ -166,16 +167,36 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
   }
   def agregarColumna(id: Int, body: CrearColumnaCampana): Int = {
     val nombre = AsistenciaValidacion.nombre(body.nombre)
-    val tipo = if (Set("whatsapp", "ficha").contains(body.tipo)) body.tipo else AsistenciaValidacion.tipo(body.tipo)
+    val tipo = if (Set("whatsapp", "ficha", "select", "rating").contains(body.tipo)) body.tipo else AsistenciaValidacion.tipo(body.tipo)
+    val opciones = if (tipo == "select") validarOpciones(body.opciones) else Nil
     // Las columnas de ficha guardan en `clave` qué dato muestran (p. ej. "beneficiario.edad"); la clave es única por campaña.
     val clave = if (tipo == "ficha") Some(CampanaFicha.validar(body.campo.getOrElse(""))) else None
     transaction { c =>
       editable(c, id)
-      try query(c, """INSERT INTO campana_columna(campana_id, nombre, tipo, clave, orden)
-        VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM campana_columna WHERE campana_id = ?)) RETURNING id""", id, nombre, tipo, clave.orNull, id)(_.getInt(1)).head
+      try query(c, """INSERT INTO campana_columna(campana_id, nombre, tipo, clave, opciones, orden)
+        VALUES (?, ?, ?, ?, ?::jsonb, (SELECT COALESCE(MAX(orden), 0) + 1 FROM campana_columna WHERE campana_id = ?)) RETURNING id""", id, nombre, tipo, clave.orNull, Json.stringify(Json.toJson(opciones)), id)(_.getInt(1)).head
       catch { case e: java.sql.SQLException if e.getSQLState == "23505" && clave.nonEmpty =>
         throw CampanaError(409, "Ese dato de la ficha ya está como columna en esta campaña.") }
     }
+  }
+  private def validarOpciones(opciones: List[OpcionCampana]): List[OpcionCampana] = {
+    val limpias = opciones.map(o => o.copy(nombre = o.nombre.trim))
+    if (limpias.isEmpty || limpias.size > 50 || limpias.exists(o => !o.id.matches("[a-zA-Z0-9_-]{1,64}") || o.nombre.isEmpty || o.nombre.length > 80) ||
+      limpias.map(_.id).distinct.size != limpias.size || limpias.map(_.nombre.toLowerCase(java.util.Locale.ROOT)).distinct.size != limpias.size)
+      throw CampanaError(400, "Agrega entre 1 y 50 opciones distintas, de hasta 80 caracteres cada una.")
+    limpias
+  }
+  def configurarOpciones(id: Int, columnaId: Int, body: ConfigurarOpcionesCampana): Unit = transaction { c =>
+    editable(c, id)
+    val opciones = validarOpciones(body.opciones)
+    val actual = query(c, "SELECT tipo, version FROM campana_columna WHERE campana_id = ? AND id = ? FOR UPDATE", id, columnaId)(rs => (rs.getString(1), rs.getInt(2)))
+      .headOption.getOrElse(throw CampanaError(404, "La columna ya no existe."))
+    if (actual._1 != "select") throw CampanaError(400, "Esta columna no es de selección única.")
+    if (actual._2 != body.version) conflict()
+    val usados = query(c, "SELECT DISTINCT valor FROM campana_valor WHERE campana_id = ? AND columna_id = ?", id, columnaId)(rs => Json.parse(rs.getString(1)).asOpt[String]).flatten
+    if (!usados.toSet.subsetOf(opciones.map(_.id).toSet))
+      throw CampanaError(409, "No puedes quitar una opción en uso. Cambia primero las celdas que la tienen asignada.")
+    execute(c, "UPDATE campana_columna SET opciones = ?::jsonb, version = version + 1 WHERE campana_id = ? AND id = ?", Json.stringify(Json.toJson(opciones)), id, columnaId)
   }
   def ordenarColumnas(id: Int, body: OrdenarColumnasCampana): Unit = transaction { c =>
     editable(c, id)
@@ -210,10 +231,21 @@ class CampanaRepository(openConnection: () => Connection = () => DB.ctx.dataSour
 
   def guardarCelda(id: Int, participanteId: Int, columnaId: Int, body: GuardarCeldaCampana): ValorCampana = transaction { c =>
     version(body.version); editable(c, id)
-    val columna = query(c, "SELECT tipo, clave, mensaje, destinatario, version FROM campana_columna WHERE campana_id = ? AND id = ? FOR SHARE", id, columnaId)(rs => (rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5)))
+    val columna = query(c, "SELECT tipo, clave, mensaje, destinatario, version, opciones FROM campana_columna WHERE campana_id = ? AND id = ? FOR SHARE", id, columnaId)(rs => (rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getInt(5), rs.getString(6)))
       .headOption.getOrElse(throw CampanaError(404, "La columna ya no existe."))
     if (columna._1 == "ficha") throw CampanaError(400, "Esta columna muestra un dato de la ficha; edítalo en la ficha de la persona.")
-    if (columna._1 == "whatsapp") CampanaMensaje.validar(body.valor) else AsistenciaValidacion.valor(columna._1, body.valor)
+    columna._1 match {
+      case "whatsapp" => CampanaMensaje.validar(body.valor)
+      case "select" =>
+        if (!body.columnaVersion.contains(columna._5)) conflict()
+        val opciones = Json.parse(columna._6).as[List[OpcionCampana]]
+        if (body.valor != JsNull && !body.valor.asOpt[String].exists(v => opciones.exists(_.id == v)))
+          throw CampanaError(400, "Selecciona una opción válida.")
+      case "rating" =>
+        if (body.valor != JsNull && !body.valor.asOpt[Int].exists(n => n >= 0 && n <= 5))
+          throw CampanaError(400, "La calificación debe ser un entero entre 0 y 5.")
+      case tipo => AsistenciaValidacion.valor(tipo, body.valor)
+    }
     if (columna._1 == "whatsapp") {
       if (!body.columnaVersion.contains(columna._5)) conflict()
       if ((body.valor \ "texto").as[String] != columna._3) throw CampanaError(409, "El mensaje cambió. Actualiza la campaña.")

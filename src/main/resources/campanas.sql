@@ -31,7 +31,8 @@ ALTER TABLE campana_columna ADD COLUMN IF NOT EXISTS mensaje TEXT NOT NULL DEFAU
 ALTER TABLE campana_columna ADD COLUMN IF NOT EXISTS destinatario TEXT NOT NULL DEFAULT 'colaborador' CHECK (destinatario IN ('beneficiario', 'colaborador'));
 ALTER TABLE campana_columna ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE campana_columna DROP CONSTRAINT IF EXISTS campana_columna_tipo_check;
-ALTER TABLE campana_columna ADD CONSTRAINT campana_columna_tipo_check CHECK (tipo IN ('boolean', 'text', 'number', 'whatsapp', 'ficha'));
+ALTER TABLE campana_columna ADD CONSTRAINT campana_columna_tipo_check CHECK (tipo IN ('boolean', 'text', 'number', 'whatsapp', 'ficha', 'select', 'rating'));
+ALTER TABLE campana_columna ADD COLUMN IF NOT EXISTS opciones JSONB NOT NULL DEFAULT '[]'::jsonb;
 CREATE TABLE IF NOT EXISTS campana_valor (
   campana_id INTEGER NOT NULL,
   participante_id INTEGER NOT NULL,

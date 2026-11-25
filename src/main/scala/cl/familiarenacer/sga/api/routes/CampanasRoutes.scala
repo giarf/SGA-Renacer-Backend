@@ -70,6 +70,13 @@ class CampanasRoutes(repo: CampanaRepository)(implicit cc: castor.Context, log: 
   def quitarColumna(id: Int, columnaId: Int) = safely { repo.quitarColumna(id, columnaId); respond(Json.obj("mensaje" -> "Columna eliminada")) }
   @cask.options("/api/campanas/:id/columnas/:columnaId/mensaje")
   def mensajeOptions(id: Int, columnaId: Int) = corsOptions()
+  @cask.options("/api/campanas/:id/columnas/:columnaId/opciones")
+  def opcionesOptions(id: Int, columnaId: Int) = corsOptions()
+  @cask.put("/api/campanas/:id/columnas/:columnaId/opciones")
+  def opciones(id: Int, columnaId: Int, request: cask.Request) = safely {
+    repo.configurarOpciones(id, columnaId, Json.parse(request.text()).as[ConfigurarOpcionesCampana])
+    respond(Json.obj("mensaje" -> "Opciones actualizadas"))
+  }
   @cask.put("/api/campanas/:id/columnas/:columnaId/mensaje")
   def mensaje(id: Int, columnaId: Int, request: cask.Request) = safely {
     repo.configurarMensaje(id, columnaId, Json.parse(request.text()).as[ConfigurarMensajeCampana])

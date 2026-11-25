@@ -76,6 +76,25 @@ class CampanasIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
     assert(intercept[CampanaError](r.guardarValor(id, row, col, GuardarValorAsistencia(JsBoolean(true), 1))).status == 409)
     assert(intercept[CampanaError](r.asignarPadrino(id, row, AsignarPadrino(None, 2))).status == 409)
   }
+  test("selección única conserva asignaciones al renombrar y rating distingue cero de vacío") {
+    val r = repo; val id = campaign()
+    val row = r.agregarParticipante(id, RegistrarParticipante(1))
+    val recibido = OpcionCampana("recibido", "Recibido")
+    val estado = r.agregarColumna(id, CrearColumnaCampana("Estado del regalo", "select", opciones = List(recibido)))
+    val rating = r.agregarColumna(id, CrearColumnaCampana("Calificación", "rating"))
+    assert(intercept[CampanaError](r.guardarCelda(id, row, estado, GuardarCeldaCampana(JsString("invalida"), 0, Some(1)))).status == 400)
+    r.guardarCelda(id, row, estado, GuardarCeldaCampana(JsString(recibido.id), 0, Some(1)))
+    r.configurarOpciones(id, estado, ConfigurarOpcionesCampana(List(recibido.copy(nombre = "Ya recibido")), 1))
+    val detalle = r.detalle(id)
+    assert(detalle.columnas.find(_.id == estado).get.opciones.head.nombre == "Ya recibido")
+    assert(detalle.participantes.head.valores(estado.toString).valor == JsString(recibido.id))
+    assert(intercept[CampanaError](r.configurarOpciones(id, estado, ConfigurarOpcionesCampana(List(OpcionCampana("otro", "Otro")), 2))).status == 409)
+    assert(intercept[CampanaError](r.guardarCelda(id, row, rating, GuardarCeldaCampana(JsNumber(6), 0))).status == 400)
+    val cero = r.guardarCelda(id, row, rating, GuardarCeldaCampana(JsNumber(0), 0))
+    assert(cero.valor == JsNumber(0))
+    assert(r.guardarCelda(id, row, rating, GuardarCeldaCampana(JsNull, cero.version)).valor == JsNull)
+  }
+
   test("columnas de ficha muestran datos de la persona y no se editan desde la campaña") {
     val r = repo; val id = campaign()
     val row = r.agregarParticipante(id, RegistrarParticipante(1))
